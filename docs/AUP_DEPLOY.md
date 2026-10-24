@@ -13,26 +13,41 @@
 ```bash
 findmnt -T /home/jovyan
 df -h /home/jovyan
-python -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "no GPU")'
+python3 -c 'import torch; print(torch.__version__, torch.version.hip, torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else "no GPU")'
 ```
 
 先创建一个测试文件，再通过平台停止并重启环境，确认 `/home/jovyan` 文件保留。目录与配额以平台实例配置为准。
 
 ## 2. 保留 AMD 环境中的 PyTorch
 
-如果平台已经安装可用的 ROCm PyTorch，可以用 **相同 Python** 创建继承系统包的虚拟环境：
+使用能通过 GPU 实际运算检查的 Python 运行安装器。当前已验证的 AUP 实例使用 `/usr/bin/python3`，没有 `python` 命令：
 
 ```bash
 cd /home/jovyan/projects/meeting-assistant
-python -m venv --system-site-packages .venv
-.venv/bin/python -m pip install -r requirements.txt -r requirements-models.txt
+python3 scripts/setup_aup.py
 ```
 
-随后再次运行 GPU 检查。不要运行 `--cpu-models`，它是本地 CPU 环境的安装选项。若平台没有可用的 ROCm torch，请先按该镜像与 gfx1151 的官方适配要求准备；不能假定安装标准 PyPI torch 就能加速 8060S。
+安装器先以 45 秒超时验证实际 GPU 运算，在项目 `.venv` 引用平台的 ROCm torch，并约束安装期间的 torch 版本，额外依赖只安装到项目环境。平台 Python 若本身处于虚拟环境，单独使用 `--system-site-packages` 不足以继承父环境；安装器会显式添加 torch 所在包目录。
+
+随后安装器生成 `.env`，自动从 `JUPYTERHUB_SERVICE_PREFIX` 设置代理前缀。已有 `.env` 会保留，新的配置写入 `.env.aup`；查看后可用 `cp .env.aup .env` 启用。不要运行 `--cpu-models` 或 `setup-radeon.sh`。
+
+下载配置中对应的三个模型：
+
+```bash
+HF_HOME=/home/jovyan/model-cache HF_HUB_DISABLE_XET=1 \
+  .venv/bin/python scripts/download_models.py \
+  --directory /home/jovyan/models/meeting-assistant \
+  --llm Qwen/Qwen3-4B-Instruct-2507 \
+  --translation tencent/Hy-MT2-1.8B
+```
+
+重复执行会复用已下载文件。三份权重合计约 13.7 GB，另需为依赖、缓存和录音留空间；`df` 显示共享存储容量不代表个人配额。下载失败时保留报错，先确认模型站连通性，不要安装其他 torch。
+
+2026-10-24 用户在 AUP 实测：`/usr/bin/python3`、torch `2.9.1+rocm7.13.0`、ROCm `7.13.99004-3309c6114a`、Radeon 8060S Graphics，GPU 张量计算与结果回传通过。此记录仅代表基础 GPU 检查通过，模型推理及完整安装仍需在该实例验证。
 
 ## 3. 平台配置
 
-将以下内容保存为项目根目录 `.env`，其中用户名和地址需要替换为实际值：
+推荐使用安装器生成的配置，模板见 `configs/aup.env.example`（本地模型目录、离线加载）。如果希望直接从 Hugging Face 加载模型，可手工使用下面的配置，其中用户名和地址需要替换为实际值：
 
 ```dotenv
 PROVIDER=qwen
