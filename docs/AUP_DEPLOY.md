@@ -91,6 +91,34 @@ https://tpe.aupcloud.io/user/<URL-encoded-username>/proxy/8765/
 
 保留地址末尾 `/`。前端使用相对 URL 请求 API、静态文件和 WebSocket。`ROOT_PATH` 填平台实际代理前缀，服务本身仍然只注册 `/api/...` 路由。如果代理已经自动设置 ASGI root path，请避免重复配置。
 
+`scripts/run.py` 同时向 Uvicorn 传递 `ROOT_PATH`，让去掉代理前缀的请求正确访问挂载的静态文件；只设置 FastAPI 的 root path 会导致某些版本的 Starlette 静态文件路由返回 404。请使用最新启动脚本。
+
+### JupyterLab 返回 404，但本机健康检查正常
+
+`/proxy/8765/` 需要 Notebook 服务启用 `jupyter_server_proxy`。先运行 `python3 -m jupyter server extension list` 查看；AUP 某些 Notebook 镜像没有此扩展。仅把包安装进项目 `.venv` 不会让平台的 Notebook 服务发现它。
+
+使用安装脚本，将扩展及缺少的依赖安装到持久化的用户包目录，并生成用户级启用配置：
+
+```bash
+cd /home/jovyan/projects/meeting-assistant
+git pull --ff-only
+python3 scripts/setup_aup_proxy.py
+python3 -m jupyter server extension list
+```
+
+预期出现 `jupyter_server_proxy enabled` 和 `OK`。这是用户目录安装，不需要 sudo，不更改系统 torch。脚本使用项目 pip 的 `--prefix` 安装到 `/home/jovyan/.local`，通过平台 Python 验证模块，再写入独立的 `meeting-assistant-proxy.json` 启用配置，不覆盖其他扩展。必须保证平台 Python 能导入该模块；若验证失败，保留输出排查 Python 环境和用户包路径，不要继续重启。
+
+启用配置会在 **Notebook 服务器下次启动** 时加载。保存工作后到 Hub 控制页停止并重新启动服务器，继续选择相同账号和环境；仅重启 Notebook 内核或刷新页面不会加载新服务端路由。此操作会中断当前应用进程，重新连接后再次执行：
+
+```bash
+cd /home/jovyan/projects/meeting-assistant
+bash scripts/start.sh
+```
+
+然后打开当前 Notebook 服务前缀下的 `/proxy/8765/`。安装包在 `/home/jovyan/.local`、扩展配置在 `/home/jovyan/.jupyter`，与项目和模型一起保留；若新镜像更换了 Python 小版本，需要按新的环境重新安装扩展。重新申请 GPU 可能需要等待平台调度。
+
+本地隔离环境已复现“后端健康、Notebook 代理 404”，并验证用户目录安装和启用配置。以真实 Jupyter Server + Server Proxy 启动服务后，验证了认证代理下的页面、JS / CSS / AudioWorklet、API、WebSocket、演示记录与三种导出。此检查不包含 AUP 实例中的实际路由加载和模型 GPU 推理；用户须在平台重启后验收。
+
 界面服务和数据库可以在 CPU 上运行；真实模型调用依赖当前选定的设备。平台运行时长到期会停止进程，数据保留不等于服务持续运行。`tmux` 仅防终端断开，不能让进程跨实例停止继续工作。
 
 ## 5. 团队协作

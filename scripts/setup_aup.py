@@ -1,5 +1,6 @@
 """Prepare the project on AUP without replacing the working ROCm torch."""
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -110,6 +111,10 @@ print("GPU calculation passed", flush=True)
         print('已有 .env 已保留；确认 AUP 配置后运行 cp .env.aup .env 启用。', flush=True)
     if not prefix:
         print('未检测到 JupyterHub 代理前缀；稍后按平台生成的访问地址设置 ROOT_PATH。', flush=True)
+    if (importlib.util.find_spec('jupyter_server') is not None and
+            importlib.util.find_spec('jupyter_server_proxy') is None):
+        print('Notebook 环境尚未安装 jupyter_server_proxy，/proxy/8765/ 暂不可用。', flush=True)
+        print('请运行 python3 scripts/setup_aup_proxy.py 安装扩展，完成后重启 Notebook 服务器。', flush=True)
     print('依赖准备完成。接下来下载三个模型，然后运行 bash scripts/start.sh。', flush=True)
 
 
