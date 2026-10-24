@@ -5,12 +5,53 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from urllib.error import URLError
+from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
 def run(args, **kwargs):
     return subprocess.run([str(arg) for arg in args], check=True, **kwargs)
+
+
+def prepare_venv(root, base_python):
+    """Create or finish a venv without requiring Debian's optional ensurepip."""
+    venv = root / '.venv'
+    python = venv / 'bin/python'
+    # ensurepip runs before activation scripts are written. A failed creation
+    # can leave a working bin/python but an otherwise incomplete environment.
+    if not python.exists() or not (venv / 'bin/activate').is_file():
+        run([base_python, '-m', 'venv', '--without-pip',
+             '--system-site-packages', venv])
+    query = ('import json,sys,sysconfig; print(json.dumps(['
+             'list(sys.version_info[:2]),sysconfig.get_path("purelib"),'
+             'sys.prefix,sys.base_prefix]))')
+    version, site, prefix, base_prefix = json.loads(
+        subprocess.check_output([str(python), '-c', query]))
+    if prefix == base_prefix or Path(prefix).resolve() != venv.resolve():
+        raise SystemExit('项目 Python 未处于独立虚拟环境，已停止安装。请保留现场并检查 .venv。')
+    return python, version, Path(site)
+
+
+def ensure_pip(python, tools):
+    """Use inherited pip, or bootstrap pip into this venv via PyPA's installer."""
+    available = subprocess.run([str(python), '-m', 'pip', '--version'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if available.returncode == 0:
+        return
+    tools.mkdir(parents=True, exist_ok=True)
+    bootstrap = tools / 'get-pip.py'
+    print('虚拟环境缺少 pip，正在通过 PyPA 官方安装器补齐（无需 sudo）。', flush=True)
+    try:
+        with urlopen('https://bootstrap.pypa.io/get-pip.py', timeout=60) as response:
+            bootstrap.write_bytes(response.read())
+    except (OSError, URLError) as exc:
+        raise SystemExit(f'下载 pip 安装器失败：{exc}。请保留输出并检查平台网络。') from None
+    # Override an inherited PIP_USER so packages stay inside the project venv.
+    env = dict(os.environ, PIP_USER='false')
+    run([python, bootstrap, '--no-setuptools', '--no-wheel', '--no-cache-dir'], env=env)
+    run([python, '-m', 'pip', '--version'])
 
 
 def main():
@@ -38,15 +79,11 @@ print("GPU calculation passed", flush=True)
 
     import torch
     platform_site = Path(torch.__file__).resolve().parent.parent
-    python = ROOT / '.venv/bin/python'
-    if not python.exists():
-        run([sys.executable, '-m', 'venv', '--system-site-packages', ROOT / '.venv'])
-    query = 'import json,sys,sysconfig; print(json.dumps([list(sys.version_info[:2]),sysconfig.get_path("purelib")]))'
-    version, site = json.loads(subprocess.check_output([str(python), '-c', query]))
+    python, version, site = prepare_venv(ROOT, sys.executable)
     if tuple(version) != sys.version_info[:2]:
         raise SystemExit('已有 .venv 与平台 Python 版本不同，请保留旧环境后重新创建。')
     # Also works when the platform torch lives inside a parent virtualenv.
-    (Path(site) / 'platform-rocm.pth').write_text(str(platform_site) + '\n')
+    (site / 'platform-rocm.pth').write_text(str(platform_site) + '\n')
     verify = ('import torch; '
               f'assert torch.version.hip and torch.__version__ == {torch.__version__!r}, '
               '"项目 .venv 中的 torch 覆盖了平台构建，请先修正环境"; '
@@ -54,10 +91,12 @@ print("GPU calculation passed", flush=True)
     run([python, '-c', verify])
     tools = ROOT / 'tools'
     tools.mkdir(exist_ok=True)
+    ensure_pip(python, tools)
     constraint = tools / 'aup-torch-constraint.txt'
     constraint.write_text(f'torch=={torch.__version__}\n')
     run([python, '-m', 'pip', 'install', '--no-cache-dir', '-c', constraint,
-         '-r', 'requirements.txt', '-r', 'requirements-models.txt'])
+         '-r', 'requirements.txt', '-r', 'requirements-models.txt'],
+        env=dict(os.environ, PIP_USER='false'))
     run([python, '-c', verify])
 
     template = (ROOT / 'configs/aup.env.example').read_text()

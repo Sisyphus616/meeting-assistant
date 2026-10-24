@@ -29,6 +29,10 @@ python3 scripts/setup_aup.py
 
 安装器先以 45 秒超时验证实际 GPU 运算，在项目 `.venv` 引用平台的 ROCm torch，并约束安装期间的 torch 版本，额外依赖只安装到项目环境。平台 Python 若本身处于虚拟环境，单独使用 `--system-site-packages` 不足以继承父环境；安装器会显式添加 torch 所在包目录。
 
+平台缺少 `ensurepip` / `python3.12-venv` 时，安装器使用 `venv --without-pip` 创建环境；pip 不可用时通过 PyPA 官方 `get-pip.py` 仅为项目补齐 pip，无需 sudo 或改动系统包。旧版脚本失败留下的不完整 `.venv` 可原地补齐，不需要删除。更新代码后直接重新执行安装器即可。
+
+该恢复流程已在本地 `/usr/bin/python3.12`（ensurepip、pip 均缺失）复现验证：旧命令失败并留下不完整环境，新流程成功补齐、安装 pip 和项目内依赖，保留已有文件，重复执行正常。此验证不代表 AUP 上完整模型安装已完成。
+
 随后安装器生成 `.env`，自动从 `JUPYTERHUB_SERVICE_PREFIX` 设置代理前缀。已有 `.env` 会保留，新的配置写入 `.env.aup`；查看后可用 `cp .env.aup .env` 启用。不要运行 `--cpu-models` 或 `setup-radeon.sh`。
 
 下载配置中对应的三个模型：
