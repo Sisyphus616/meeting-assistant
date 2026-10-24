@@ -1,0 +1,5 @@
+# Install the correct CPU / ROCm torch build FIRST; see README.md.
+transformers>=5.13,<6
+accelerate>=1.10,<2
+soundfile>=0.13,<1
+librosa>=0.11,<1
