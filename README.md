@@ -152,6 +152,6 @@ node --check web/pcm-worklet.js
 - 页面已实现响应式布局。麦克风需要 localhost 或 HTTPS。实际麦克风权限和声学表现仍需用户在电脑浏览器中验证。
 - 当前为单团队课程原型，没有账号／多租户隔离。保持本机回环监听；AUP 通过平台认证的代理访问。
 
-部署及课程实验见 [AUP 部署](docs/AUP_DEPLOY.md) 和 [架构与实验](docs/ARCHITECTURE.md)。
+部署及课程实验见 [AUP 部署](docs/AUP_DEPLOY.md)、[Radeon Cloud 部署](docs/RADEON_CLOUD.md) 和 [架构与实验](docs/ARCHITECTURE.md)。
 
 本机已完成真实模型端到端联调。初版记录见 [本地验收记录](docs/VALIDATION.md)，最新翻译模型与界面变更见 [翻译与界面改版](docs/TRANSLATION_UPDATE.md)。
