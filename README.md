@@ -163,3 +163,7 @@ node tests/speech-chunker.cjs
 本机已完成真实模型端到端联调。初版记录见 [本地验收记录](docs/VALIDATION.md)，最新翻译模型与界面变更见 [翻译与界面改版](docs/TRANSLATION_UPDATE.md)。
 
 本次录制中转写和自动断句的设计与测试见 [实时转写更新](docs/LIVE_TRANSCRIPTION.md)。
+
+课程质量与性能实验、公开会议/演讲样本、三模型独立评分及 AUP 复测命令见 [实验方法](docs/EVALUATION.md)。
+
+已完成的本地 CPU 实测、质量与延迟图表、切分对照见 [实验结果](docs/EVALUATION_RESULTS.md)。

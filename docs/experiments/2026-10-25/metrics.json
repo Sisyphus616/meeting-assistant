@@ -1,0 +1,1353 @@
+{
+  "selection": "Pre-inference fixed selection: 10 AMI headset meeting clips (5–40s), 10 TED-LIUM held-out talk clips (15–40s), 5 auxiliary Mandarin FLEURS validation clips (5–40s), and 5 paired AMI Gaussian-noise stress cases (10dB). No selection by model output.",
+  "limitations": "25 original clips plus 5 derived pairs, not 30 independent recordings. AMI IHM is close-talk per-speaker audio, not a mixed far-field meeting. TED talks are presentations, not all are academic lectures. Chinese FLEURS is read speech, not a meeting. Public reference transcripts have not been manually re-audited. Dataset overlap with model pretraining is unknown. No human translations are supplied.",
+  "expected_samples": 30,
+  "primary_samples": 30,
+  "primary_successes": 30,
+  "warm_trials": 90,
+  "warm_failures": 0,
+  "original_english_quality": {
+    "reference_units": 831,
+    "hypothesis_units": 809,
+    "substitutions": 41,
+    "deletions": 30,
+    "insertions": 8,
+    "errors": 79,
+    "rate": 0.0950661853188929
+  },
+  "chinese_skip_trials": {
+    "total": 15,
+    "skipped": 15
+  },
+  "all_warm_first_asr_ms": {
+    "n": 90,
+    "mean": 2614.8739222222216,
+    "median": 2152.275,
+    "p95": 7116.57305,
+    "min": 785.306,
+    "max": 14241.933
+  },
+  "all_warm_first_translation_ms": {
+    "n": 75,
+    "mean": 3248.48708,
+    "median": 2714.86,
+    "p95": 9076.200299999999,
+    "min": 1037.978,
+    "max": 15788.98
+  },
+  "all_warm_complete_ms": {
+    "n": 90,
+    "mean": 11154.481444444444,
+    "median": 8411.842,
+    "p95": 24771.25165,
+    "min": 3158.267,
+    "max": 30491.555
+  },
+  "groups": {
+    "chinese_auxiliary": {
+      "samples": 5,
+      "failures": 0,
+      "metric": "CER",
+      "quality": {
+        "reference_units": 148,
+        "hypothesis_units": 141,
+        "substitutions": 6,
+        "deletions": 8,
+        "insertions": 1,
+        "errors": 15,
+        "rate": 0.10135135135135136
+      },
+      "first_asr_ms": {
+        "n": 15,
+        "mean": 3153.6272000000004,
+        "median": 3169.792,
+        "p95": 4251.248,
+        "min": 2271.052,
+        "max": 4363.227
+      },
+      "first_translation_ms": {
+        "n": 0
+      },
+      "complete_ms": {
+        "n": 15,
+        "mean": 5242.0108,
+        "median": 5445.579,
+        "p95": 6851.4734,
+        "min": 3436.712,
+        "max": 6892.226
+      },
+      "pipeline_rtf": {
+        "n": 15,
+        "mean": 0.612992721269168,
+        "median": 0.6779769841269842,
+        "p95": 0.8259317886178862,
+        "min": 0.3557672877846791,
+        "max": 0.8305275067750677
+      }
+    },
+    "meeting": {
+      "samples": 10,
+      "failures": 0,
+      "metric": "WER",
+      "quality": {
+        "reference_units": 181,
+        "hypothesis_units": 163,
+        "substitutions": 18,
+        "deletions": 20,
+        "insertions": 2,
+        "errors": 40,
+        "rate": 0.22099447513812154
+      },
+      "first_asr_ms": {
+        "n": 30,
+        "mean": 1618.5470000000003,
+        "median": 1444.101,
+        "p95": 2450.9652499999997,
+        "min": 785.306,
+        "max": 2455.353
+      },
+      "first_translation_ms": {
+        "n": 30,
+        "mean": 2272.2221333333337,
+        "median": 2154.685,
+        "p95": 3156.6691499999997,
+        "min": 1291.841,
+        "max": 3222.765
+      },
+      "complete_ms": {
+        "n": 30,
+        "mean": 7511.8040666666675,
+        "median": 7446.7055,
+        "p95": 11268.247299999999,
+        "min": 3158.267,
+        "max": 11402.405
+      },
+      "pipeline_rtf": {
+        "n": 30,
+        "mean": 0.9759319938702122,
+        "median": 0.9738065008506689,
+        "p95": 1.2913566694915253,
+        "min": 0.5237590381426201,
+        "max": 1.357597966101695
+      }
+    },
+    "meeting_noise": {
+      "samples": 5,
+      "failures": 0,
+      "metric": "WER",
+      "quality": {
+        "reference_units": 86,
+        "hypothesis_units": 69,
+        "substitutions": 12,
+        "deletions": 17,
+        "insertions": 0,
+        "errors": 29,
+        "rate": 0.3372093023255814
+      },
+      "first_asr_ms": {
+        "n": 15,
+        "mean": 1336.7955333333334,
+        "median": 1161.591,
+        "p95": 2124.4986,
+        "min": 859.477,
+        "max": 2148.251
+      },
+      "first_translation_ms": {
+        "n": 15,
+        "mean": 1983.0176666666669,
+        "median": 1488.349,
+        "p95": 3127.029099999999,
+        "min": 1037.978,
+        "max": 3813.412
+      },
+      "complete_ms": {
+        "n": 15,
+        "mean": 7699.363733333334,
+        "median": 7878.807,
+        "p95": 9538.1142,
+        "min": 5239.067,
+        "max": 10245.747
+      },
+      "pipeline_rtf": {
+        "n": 15,
+        "mean": 1.0658158269325677,
+        "median": 0.9899828729281768,
+        "p95": 1.4043419999999998,
+        "min": 0.9048474956822108,
+        "max": 1.5652276271186443
+      }
+    },
+    "talk": {
+      "samples": 10,
+      "failures": 0,
+      "metric": "WER",
+      "quality": {
+        "reference_units": 650,
+        "hypothesis_units": 646,
+        "substitutions": 23,
+        "deletions": 10,
+        "insertions": 6,
+        "errors": 39,
+        "rate": 0.06
+      },
+      "first_asr_ms": {
+        "n": 30,
+        "mean": 3980.8634000000006,
+        "median": 2693.7264999999998,
+        "p95": 12338.99655,
+        "min": 1215.88,
+        "max": 14241.933
+      },
+      "first_translation_ms": {
+        "n": 30,
+        "mean": 4857.486733333334,
+        "median": 3438.373,
+        "p95": 14198.835099999998,
+        "min": 1553.495,
+        "max": 15788.98
+      },
+      "complete_ms": {
+        "n": 30,
+        "mean": 19480.952999999998,
+        "median": 18488.410499999998,
+        "p95": 27121.98145,
+        "min": 11758.169,
+        "max": 30491.555
+      },
+      "pipeline_rtf": {
+        "n": 30,
+        "mean": 0.9509393123659496,
+        "median": 0.9517566798023602,
+        "p95": 1.1325931450025806,
+        "min": 0.6896286803519062,
+        "max": 1.2109674858414239
+      }
+    }
+  },
+  "cold": [
+    {
+      "splitter": "pause",
+      "sample_id": "ami-01",
+      "first_asr_ms": 61953.706,
+      "complete_ms": 90753.684,
+      "success": true
+    },
+    {
+      "splitter": "fixed10",
+      "sample_id": "ted-01",
+      "first_asr_ms": 68921.725,
+      "complete_ms": 104973.983,
+      "success": true
+    }
+  ],
+  "noise_pairs": {
+    "n": 5,
+    "clean": {
+      "reference_units": 86,
+      "hypothesis_units": 73,
+      "substitutions": 12,
+      "deletions": 13,
+      "insertions": 0,
+      "errors": 25,
+      "rate": 0.29069767441860467
+    },
+    "noisy": {
+      "reference_units": 86,
+      "hypothesis_units": 69,
+      "substitutions": 12,
+      "deletions": 17,
+      "insertions": 0,
+      "errors": 29,
+      "rate": 0.3372093023255814
+    },
+    "pairs": [
+      {
+        "clean_id": "ami-01",
+        "noisy_id": "noise-01",
+        "clean_wer": 0.8888888888888888,
+        "noisy_wer": 0.8888888888888888
+      },
+      {
+        "clean_id": "ami-02",
+        "noisy_id": "noise-02",
+        "clean_wer": 0.1111111111111111,
+        "noisy_wer": 0.2222222222222222
+      },
+      {
+        "clean_id": "ami-03",
+        "noisy_id": "noise-03",
+        "clean_wer": 0.23076923076923078,
+        "noisy_wer": 0.15384615384615385
+      },
+      {
+        "clean_id": "ami-04",
+        "noisy_id": "noise-04",
+        "clean_wer": 0.42105263157894735,
+        "noisy_wer": 0.3684210526315789
+      },
+      {
+        "clean_id": "ami-05",
+        "noisy_id": "noise-05",
+        "clean_wer": 0.14814814814814814,
+        "noisy_wer": 0.2962962962962963
+      }
+    ]
+  },
+  "comparison": [
+    {
+      "sample_id": "ted-01",
+      "pause": {
+        "wer": 0.16326530612244897,
+        "chunk_count": 6,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 1233.0256666666667,
+          "median": 1227.951,
+          "p95": 1252.5165000000002,
+          "min": 1215.88,
+          "max": 1255.246
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 18716.982333333333,
+          "median": 18249.325,
+          "p95": 19727.3194,
+          "min": 18010.081,
+          "max": 19891.541
+        }
+      },
+      "fixed10": {
+        "wer": 0.14285714285714285,
+        "chunk_count": 2,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 4998.006333333334,
+          "median": 4983.469,
+          "p95": 5037.6049,
+          "min": 4966.93,
+          "max": 5043.62
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 14281.407666666666,
+          "median": 14291.802,
+          "p95": 14315.3325,
+          "min": 14234.474,
+          "max": 14317.947
+        }
+      }
+    },
+    {
+      "sample_id": "ted-02",
+      "pause": {
+        "wer": 0.0425531914893617,
+        "chunk_count": 4,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 3365.6133333333332,
+          "median": 3286.993,
+          "p95": 3501.4656999999997,
+          "min": 3284.551,
+          "max": 3525.296
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 15634.321000000002,
+          "median": 15449.334,
+          "p95": 16593.2205,
+          "min": 14733.31,
+          "max": 16720.319
+        }
+      },
+      "fixed10": {
+        "wer": 0.0,
+        "chunk_count": 2,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 5215.187666666666,
+          "median": 5180.931,
+          "p95": 5299.3152,
+          "min": 5152.163,
+          "max": 5312.469
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 13892.396999999999,
+          "median": 13719.43,
+          "p95": 14230.1935,
+          "min": 13670.816,
+          "max": 14286.945
+        }
+      }
+    },
+    {
+      "sample_id": "ted-03",
+      "pause": {
+        "wer": 0.04938271604938271,
+        "chunk_count": 3,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 1783.6063333333332,
+          "median": 1805.554,
+          "p95": 1863.5617,
+          "min": 1675.258,
+          "max": 1870.007
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 22108.43266666667,
+          "median": 21188.617,
+          "p95": 23672.1454,
+          "min": 21188.588,
+          "max": 23948.093
+        }
+      },
+      "fixed10": {
+        "wer": 0.04938271604938271,
+        "chunk_count": 2,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 6165.967000000001,
+          "median": 6106.137,
+          "p95": 6297.365400000001,
+          "min": 6073.151,
+          "max": 6318.613
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 19122.703666666668,
+          "median": 18224.84,
+          "p95": 20661.5522,
+          "min": 18210.973,
+          "max": 20932.298
+        }
+      }
+    },
+    {
+      "sample_id": "ted-04",
+      "pause": {
+        "wer": 0.028169014084507043,
+        "chunk_count": 4,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 2827.8963333333336,
+          "median": 2829.251,
+          "p95": 2848.8674,
+          "min": 2803.391,
+          "max": 2851.047
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 19217.254333333334,
+          "median": 18727.496,
+          "p95": 20665.0097,
+          "min": 18043.978,
+          "max": 20880.289
+        }
+      },
+      "fixed10": {
+        "wer": 0.014084507042253521,
+        "chunk_count": 2,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 7087.143,
+          "median": 7016.498,
+          "p95": 7234.7651,
+          "min": 6985.914,
+          "max": 7259.017
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 16605.066000000003,
+          "median": 16228.785,
+          "p95": 17560.1253,
+          "min": 15878.361,
+          "max": 17708.052
+        }
+      }
+    },
+    {
+      "sample_id": "ted-05",
+      "pause": {
+        "wer": 0.021739130434782608,
+        "chunk_count": 4,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 2548.5986666666668,
+          "median": 2538.059,
+          "p95": 2571.3662,
+          "min": 2532.67,
+          "max": 2575.067
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 15130.121,
+          "median": 15036.861,
+          "p95": 15778.6806,
+          "min": 14492.397,
+          "max": 15861.105
+        }
+      },
+      "fixed10": {
+        "wer": 0.06521739130434782,
+        "chunk_count": 2,
+        "first_asr_ms": {
+          "n": 3,
+          "mean": 5007.359666666666,
+          "median": 5037.732,
+          "p95": 5059.7424,
+          "min": 4922.159,
+          "max": 5062.188
+        },
+        "complete_ms": {
+          "n": 3,
+          "mean": 13618.335000000001,
+          "median": 13459.804,
+          "p95": 13973.7463,
+          "min": 13364.35,
+          "max": 14030.851
+        }
+      }
+    }
+  ],
+  "comparison_aggregate": {
+    "samples": 5,
+    "pause": {
+      "quality": {
+        "reference_units": 294,
+        "hypothesis_units": 292,
+        "substitutions": 11,
+        "deletions": 4,
+        "insertions": 2,
+        "errors": 17,
+        "rate": 0.05782312925170068
+      },
+      "first_asr_ms": {
+        "n": 15,
+        "mean": 2351.7480666666665,
+        "median": 2538.059,
+        "p95": 3358.4838999999997,
+        "min": 1215.88,
+        "max": 3525.296
+      },
+      "complete_ms": {
+        "n": 15,
+        "mean": 18161.422266666665,
+        "median": 18043.978,
+        "p95": 22016.459799999997,
+        "min": 14492.397,
+        "max": 23948.093
+      },
+      "first_repeat_chunks": 21
+    },
+    "fixed10": {
+      "quality": {
+        "reference_units": 294,
+        "hypothesis_units": 293,
+        "substitutions": 8,
+        "deletions": 4,
+        "insertions": 3,
+        "errors": 15,
+        "rate": 0.05102040816326531
+      },
+      "first_asr_ms": {
+        "n": 15,
+        "mean": 5694.732733333332,
+        "median": 5180.931,
+        "p95": 7089.253699999999,
+        "min": 4922.159,
+        "max": 7259.017
+      },
+      "complete_ms": {
+        "n": 15,
+        "mean": 15503.981866666667,
+        "median": 14291.802,
+        "p95": 19037.0774,
+        "min": 13364.35,
+        "max": 20932.298
+      },
+      "first_repeat_chunks": 10
+    }
+  },
+  "jobs": {
+    "纪要": {
+      "inference_ms": {
+        "n": 108,
+        "mean": 932.8148148148146,
+        "median": 915.4,
+        "p95": 1444.6599999999996,
+        "min": 513.0,
+        "max": 2325.2
+      },
+      "queue_ms": {
+        "n": 108,
+        "mean": 266.22407407407405,
+        "median": 0.1,
+        "p95": 2044.0099999999998,
+        "min": 0.1,
+        "max": 2280.5
+      }
+    },
+    "翻译": {
+      "inference_ms": {
+        "n": 267,
+        "mean": 570.4086142322096,
+        "median": 513.5,
+        "p95": 1204.8999999999992,
+        "min": 103.7,
+        "max": 2046.8
+      },
+      "queue_ms": {
+        "n": 267,
+        "mean": 59.94756554307116,
+        "median": 0.2,
+        "p95": 844.43,
+        "min": 0.0,
+        "max": 1392.5
+      }
+    },
+    "识别": {
+      "inference_ms": {
+        "n": 279,
+        "mean": 2174.3093189964143,
+        "median": 1943.3,
+        "p95": 4241.539999999998,
+        "min": 560.7,
+        "max": 13844.1
+      },
+      "queue_ms": {
+        "n": 279,
+        "mean": 13.85627240143369,
+        "median": 0.2,
+        "p95": 87.49999999999993,
+        "min": 0.0,
+        "max": 929.2
+      }
+    }
+  },
+  "truncated_job_traces": 0,
+  "collector_status_recomputed": 12,
+  "quality_recomputed": 15,
+  "metric_normalization": "NFKC/casefold, punctuation and annotation removal, contraction joining; Unicode word tokens for English WER (non-Latin hallucinations retained); Unicode alphanumeric characters for Mandarin CER. Recomputed from raw text.",
+  "translation_judging": {
+    "status": "complete",
+    "completed_judges": 3,
+    "judges": [
+      {
+        "judge_id": "A",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high",
+        "temperature": null,
+        "note": "Agent接口不提供精确模型snapshot、temperature或sampling seed。rubric_sha256采用rubric.json声明且input-A.json引用的rubric标识；rubric.json原始文件字节SHA256为72ffb7ecea2c9b1096517077f12e7f35f223dabbc49b9924da9909fbfda895b7。各条独立依据reference评分，recognized_transcript仅作诊断；不因源口语自身的重复、残句或未明确的上下文扣分。"
+      },
+      {
+        "judge_id": "B",
+        "model": "gpt-6-astra",
+        "reasoning_effort": "high",
+        "temperature": null,
+        "note": "Agent 接口没有暴露精确模型 snapshot、temperature 或 sampling seed。rubric_sha256 采用 rubric 与输入中声明的量表标识；rubric_file_sha256 为实际读取文件的 SHA256。评分以 reference 为原始语义依据，包含 ASR 错误传导；各维度分别记录，汇总权重为忠实性 0.6、术语和关键概念 0.2、流畅性 0.2。"
+      },
+      {
+        "judge_id": "C",
+        "model": "gpt-6-sol",
+        "reasoning_effort": "medium",
+        "temperature": null,
+        "note": "Agent API does not expose exact snapshot, temperature or sampling seed."
+      }
+    ],
+    "original_clean_mean": {
+      "n": 20,
+      "mean": 3.439999999999999,
+      "median": 3.3833333333333337,
+      "p95": 4.678333333333334,
+      "min": 1.1333333333333333,
+      "max": 4.9
+    },
+    "groups": {
+      "meeting": {
+        "n": 10,
+        "mean": 3.2599999999999993,
+        "median": 3.333333333333333,
+        "p95": 4.6066666666666665,
+        "min": 1.1333333333333333,
+        "max": 4.666666666666667
+      },
+      "meeting_noise": {
+        "n": 5,
+        "mean": 2.9733333333333336,
+        "median": 3.133333333333333,
+        "p95": 4.153333333333333,
+        "min": 1.3333333333333333,
+        "max": 4.2
+      },
+      "talk": {
+        "n": 10,
+        "mean": 3.62,
+        "median": 3.5,
+        "p95": 4.765,
+        "min": 2.6666666666666665,
+        "max": 4.9
+      }
+    },
+    "disagreements": [
+      {
+        "candidate_id": "C004",
+        "sample_id": "ami-04",
+        "group": "meeting",
+        "mean": 2.2666666666666666,
+        "spread": 1.0,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.4
+          },
+          {
+            "judge": "B",
+            "score": 1.7
+          },
+          {
+            "judge": "C",
+            "score": 2.7
+          }
+        ]
+      }
+    ],
+    "candidates": [
+      {
+        "candidate_id": "C001",
+        "sample_id": "ami-01",
+        "group": "meeting",
+        "mean": 2.2333333333333334,
+        "spread": 0.5,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.5
+          },
+          {
+            "judge": "B",
+            "score": 2.2
+          },
+          {
+            "judge": "C",
+            "score": 2.0
+          }
+        ]
+      },
+      {
+        "candidate_id": "C002",
+        "sample_id": "ami-02",
+        "group": "meeting",
+        "mean": 4.666666666666667,
+        "spread": 0.9,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.9
+          },
+          {
+            "judge": "B",
+            "score": 5.0
+          },
+          {
+            "judge": "C",
+            "score": 4.1
+          }
+        ]
+      },
+      {
+        "candidate_id": "C003",
+        "sample_id": "ami-03",
+        "group": "meeting",
+        "mean": 3.233333333333333,
+        "spread": 0.6,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.3
+          },
+          {
+            "judge": "B",
+            "score": 3.5
+          },
+          {
+            "judge": "C",
+            "score": 2.9
+          }
+        ]
+      },
+      {
+        "candidate_id": "C004",
+        "sample_id": "ami-04",
+        "group": "meeting",
+        "mean": 2.2666666666666666,
+        "spread": 1.0,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.4
+          },
+          {
+            "judge": "B",
+            "score": 1.7
+          },
+          {
+            "judge": "C",
+            "score": 2.7
+          }
+        ]
+      },
+      {
+        "candidate_id": "C005",
+        "sample_id": "ami-05",
+        "group": "meeting",
+        "mean": 2.8000000000000003,
+        "spread": 0.6,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.8
+          },
+          {
+            "judge": "B",
+            "score": 3.1
+          },
+          {
+            "judge": "C",
+            "score": 2.5
+          }
+        ]
+      },
+      {
+        "candidate_id": "C006",
+        "sample_id": "ami-06",
+        "group": "meeting",
+        "mean": 3.4333333333333336,
+        "spread": 0.4,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.6
+          },
+          {
+            "judge": "B",
+            "score": 3.2
+          },
+          {
+            "judge": "C",
+            "score": 3.5
+          }
+        ]
+      },
+      {
+        "candidate_id": "C007",
+        "sample_id": "ami-07",
+        "group": "meeting",
+        "mean": 4.533333333333333,
+        "spread": 0.1,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.5
+          },
+          {
+            "judge": "B",
+            "score": 4.6
+          },
+          {
+            "judge": "C",
+            "score": 4.5
+          }
+        ]
+      },
+      {
+        "candidate_id": "C008",
+        "sample_id": "ami-08",
+        "group": "meeting",
+        "mean": 4.533333333333333,
+        "spread": 0.1,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.5
+          },
+          {
+            "judge": "B",
+            "score": 4.6
+          },
+          {
+            "judge": "C",
+            "score": 4.5
+          }
+        ]
+      },
+      {
+        "candidate_id": "C009",
+        "sample_id": "ami-09",
+        "group": "meeting",
+        "mean": 3.766666666666667,
+        "spread": 0.2,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.7
+          },
+          {
+            "judge": "B",
+            "score": 3.7
+          },
+          {
+            "judge": "C",
+            "score": 3.9
+          }
+        ]
+      },
+      {
+        "candidate_id": "C010",
+        "sample_id": "ami-10",
+        "group": "meeting",
+        "mean": 1.1333333333333333,
+        "spread": 0.4,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 1.4
+          },
+          {
+            "judge": "B",
+            "score": 1.0
+          },
+          {
+            "judge": "C",
+            "score": 1.0
+          }
+        ]
+      },
+      {
+        "candidate_id": "C011",
+        "sample_id": "noise-01",
+        "group": "meeting_noise",
+        "mean": 1.3333333333333333,
+        "spread": 0.3,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 1.3
+          },
+          {
+            "judge": "B",
+            "score": 1.2
+          },
+          {
+            "judge": "C",
+            "score": 1.5
+          }
+        ]
+      },
+      {
+        "candidate_id": "C012",
+        "sample_id": "noise-02",
+        "group": "meeting_noise",
+        "mean": 3.133333333333333,
+        "spread": 0.4,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.9
+          },
+          {
+            "judge": "B",
+            "score": 3.3
+          },
+          {
+            "judge": "C",
+            "score": 3.2
+          }
+        ]
+      },
+      {
+        "candidate_id": "C013",
+        "sample_id": "noise-03",
+        "group": "meeting_noise",
+        "mean": 3.9666666666666663,
+        "spread": 0.5,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.0
+          },
+          {
+            "judge": "B",
+            "score": 4.2
+          },
+          {
+            "judge": "C",
+            "score": 3.7
+          }
+        ]
+      },
+      {
+        "candidate_id": "C014",
+        "sample_id": "noise-04",
+        "group": "meeting_noise",
+        "mean": 4.2,
+        "spread": 0.5,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.4
+          },
+          {
+            "judge": "B",
+            "score": 3.9
+          },
+          {
+            "judge": "C",
+            "score": 4.3
+          }
+        ]
+      },
+      {
+        "candidate_id": "C015",
+        "sample_id": "noise-05",
+        "group": "meeting_noise",
+        "mean": 2.2333333333333334,
+        "spread": 0.5,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.5
+          },
+          {
+            "judge": "B",
+            "score": 2.2
+          },
+          {
+            "judge": "C",
+            "score": 2.0
+          }
+        ]
+      },
+      {
+        "candidate_id": "C016",
+        "sample_id": "ted-01",
+        "group": "talk",
+        "mean": 2.6666666666666665,
+        "spread": 0.6,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.8
+          },
+          {
+            "judge": "B",
+            "score": 2.9
+          },
+          {
+            "judge": "C",
+            "score": 2.3
+          }
+        ]
+      },
+      {
+        "candidate_id": "C017",
+        "sample_id": "ted-02",
+        "group": "talk",
+        "mean": 2.966666666666667,
+        "spread": 0.8,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.1
+          },
+          {
+            "judge": "B",
+            "score": 3.3
+          },
+          {
+            "judge": "C",
+            "score": 2.5
+          }
+        ]
+      },
+      {
+        "candidate_id": "C018",
+        "sample_id": "ted-03",
+        "group": "talk",
+        "mean": 3.8000000000000003,
+        "spread": 0.2,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.7
+          },
+          {
+            "judge": "B",
+            "score": 3.8
+          },
+          {
+            "judge": "C",
+            "score": 3.9
+          }
+        ]
+      },
+      {
+        "candidate_id": "C019",
+        "sample_id": "ted-04",
+        "group": "talk",
+        "mean": 4.6,
+        "spread": 0.0,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.6
+          },
+          {
+            "judge": "B",
+            "score": 4.6
+          },
+          {
+            "judge": "C",
+            "score": 4.6
+          }
+        ]
+      },
+      {
+        "candidate_id": "C020",
+        "sample_id": "ted-05",
+        "group": "talk",
+        "mean": 3.6666666666666665,
+        "spread": 0.3,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.5
+          },
+          {
+            "judge": "B",
+            "score": 3.7
+          },
+          {
+            "judge": "C",
+            "score": 3.8
+          }
+        ]
+      },
+      {
+        "candidate_id": "C021",
+        "sample_id": "ted-06",
+        "group": "talk",
+        "mean": 2.733333333333333,
+        "spread": 0.4,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 2.5
+          },
+          {
+            "judge": "B",
+            "score": 2.9
+          },
+          {
+            "judge": "C",
+            "score": 2.8
+          }
+        ]
+      },
+      {
+        "candidate_id": "C022",
+        "sample_id": "ted-07",
+        "group": "talk",
+        "mean": 3.0,
+        "spread": 0.2,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.0
+          },
+          {
+            "judge": "B",
+            "score": 3.1
+          },
+          {
+            "judge": "C",
+            "score": 2.9
+          }
+        ]
+      },
+      {
+        "candidate_id": "C023",
+        "sample_id": "ted-08",
+        "group": "talk",
+        "mean": 4.9,
+        "spread": 0.0,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.9
+          },
+          {
+            "judge": "B",
+            "score": 4.9
+          },
+          {
+            "judge": "C",
+            "score": 4.9
+          }
+        ]
+      },
+      {
+        "candidate_id": "C024",
+        "sample_id": "ted-09",
+        "group": "talk",
+        "mean": 4.533333333333334,
+        "spread": 0.5,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 4.7
+          },
+          {
+            "judge": "B",
+            "score": 4.7
+          },
+          {
+            "judge": "C",
+            "score": 4.2
+          }
+        ]
+      },
+      {
+        "candidate_id": "C025",
+        "sample_id": "ted-10",
+        "group": "talk",
+        "mean": 3.3333333333333335,
+        "spread": 0.8,
+        "judges": [
+          {
+            "judge": "A",
+            "score": 3.0
+          },
+          {
+            "judge": "B",
+            "score": 3.2
+          },
+          {
+            "judge": "C",
+            "score": 3.8
+          }
+        ]
+      }
+    ],
+    "human_audit": "Pending; scores are independent model judgments, not human accuracy."
+  },
+  "actual_started_at": "2026-10-25T10:49:20.666343+00:00",
+  "actual_finished_at": "2026-10-25T11:13:47.011499+00:00",
+  "summary_sha256": "47c2dc41c240011a480dfb6d239dd947b4a25ae75acf31c8fb6ef866c39ac6f9",
+  "environment": {
+    "started_at": "2026-10-25T10:49:20.666343+00:00",
+    "host": "DESKTOP-G5RFPEB",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.11.15 (main, Jun 11 2026, 15:20:16) [GCC 14.3.0]",
+    "cpu": "AMD Ryzen 5 7640HS w/ Radeon 760M Graphics",
+    "repeats": 3,
+    "cpu_requested": true,
+    "suite_sha256": "796ea97718d33675311e5624465992a099b3fd30b0e4da3cf8fe342fde1da433",
+    "packages": {
+      "torch": "2.14.1+cpu",
+      "transformers": "5.20.2",
+      "fastapi": "0.119.1",
+      "httpx": "0.28.1",
+      "websockets": "17.3"
+    },
+    "timings": "Client HTTP/WebSocket monotonic clock; localhost, no AUP proxy/network. Start immediately before upload; first ASR is confirmed nonempty text, not a preview or upload ACK. Complete includes final notes and client observation. File job completion is polled every 100ms. Fresh-process model-cold is separate from explicit model-prepared warm trials. OS file caches are uncontrolled.",
+    "summary_policy": "Normal application SUMMARY_EVERY; meeting stays live until file and automatic notes finish, then finish is sent to generate remaining notes.",
+    "git_commit": "3c10d7085fba95740b005be1a2be6a8f511c5c94",
+    "git_dirty": true,
+    "servers": {
+      "pause": {
+        "status": "ok",
+        "provider": "qwen",
+        "device": "cpu",
+        "asr_model": "/mnt/c/program1/meeting-assistant/models/Qwen3-ASR-0.6B-hf",
+        "llm_model": "/mnt/c/program1/meeting-assistant/models/Qwen3-0.6B",
+        "translation_model": "tencent/Hy-MT2-1.8B",
+        "translation_backend": "llama_cpp",
+        "summary_every": 4,
+        "summary_style": "extractive",
+        "metrics": {
+          "pending": 0,
+          "active": null,
+          "completed": 0,
+          "samples": []
+        },
+        "demo_sentences": 8,
+        "inference_mode": "rolling-preview-with-final-sentences",
+        "models_loaded": {
+          "asr": false,
+          "llm": false,
+          "translation": false
+        },
+        "prepare_ms": 610.514
+      },
+      "fixed10": {
+        "status": "ok",
+        "provider": "qwen",
+        "device": "cpu",
+        "asr_model": "/mnt/c/program1/meeting-assistant/models/Qwen3-ASR-0.6B-hf",
+        "llm_model": "/mnt/c/program1/meeting-assistant/models/Qwen3-0.6B",
+        "translation_model": "tencent/Hy-MT2-1.8B",
+        "translation_backend": "llama_cpp",
+        "summary_every": 4,
+        "summary_style": "extractive",
+        "metrics": {
+          "pending": 0,
+          "active": null,
+          "completed": 0,
+          "samples": []
+        },
+        "demo_sentences": 8,
+        "inference_mode": "rolling-preview-with-final-sentences",
+        "models_loaded": {
+          "asr": false,
+          "llm": false,
+          "translation": false
+        },
+        "prepare_ms": 613.192
+      }
+    },
+    "finished_at": "2026-10-25T11:13:47.011499+00:00",
+    "provenance_supplement": {
+      "note": "Supplement captured during first repeat. App source is unchanged from commit 3c10d70. The initial collector counted untranslated Chinese ASR filler segments as a missing translation; reporting recomputes delivery from stored segments. No inference model or audio changed.",
+      "runtime_configuration": {
+        "TORCH_THREADS": 6,
+        "SUMMARY_EVERY": 4,
+        "SUMMARY_STYLE": "extractive",
+        "TRANSLATION_BACKEND": "llama_cpp",
+        "TRANSLATION_GGUF": "./models/Hy-MT2-1.8B-GGUF/Hy-MT2-1.8B-Q4_K_M.gguf",
+        "TRANSLATION_BINARY": "./tools/llama.cpp/llama-server",
+        "LLM_BACKEND": "transformers",
+        "MODEL_DTYPE": "bfloat16"
+      },
+      "code_hashes": {
+        "app/audio.py": "50af8a96b33886aa496c62299f3315975b6354d55558c8cc06e5b430bc7eed00",
+        "app/config.py": "2861ce09145f8f8b5cd453c2538642245c7b9b8e72fc3df9aa3b6772dab8f9c1",
+        "app/language.py": "e47f37080f66f157c88832bb70e036ffa06697bb96ec0b40964c38b29bf083d9",
+        "app/live.py": "71ec6da8bf4ad3151d6f5939ce9a7060c70683869fb2248da8d704c632a900c9",
+        "app/main.py": "e2ee0fb50d50a6c1e3527147246dd0a8c48ecb816e7c68fb85bf238314c72142",
+        "app/providers.py": "8a0aa2c744d7a6e6e58e8de014056e3833db56f04c1b71875d7ea671ad8ad7ec",
+        "app/scheduler.py": "b99b5faa6a7f25e1f8cabc98418f4433e0dfb0838f63b5204a07d7c247dc90d4",
+        "app/sentences.py": "dabf3eff2c2c058e666d2d05f4658b0e18e3676ec046b9e09fa13772045d928b",
+        "app/store.py": "d4a486a25f1b9eb118ece1971eeec302364b3ba537ba1c4500c3ff01e5126905",
+        "app/translation.py": "c41997d79c474a2f73aa5318bde2600254948b2bb8e90025f313b2d688a4eb10",
+        "app/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "resolved_local_models": {
+        "asr": "Qwen3-ASR-0.6B-hf (CPU bfloat16)",
+        "translation": "Hy-MT2-1.8B-Q4_K_M.gguf (llama.cpp CPU)",
+        "summary": "Qwen3-0.6B (CPU bfloat16, extractive)"
+      },
+      "collection_notes": "Some development and test processes ran concurrently. This is a course prototype measurement, not an isolated hardware benchmark. All latency trials are localhost HTTP/WebSocket, not browser DOM paint or microphone streaming."
+    }
+  }
+}
