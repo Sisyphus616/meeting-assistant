@@ -17,7 +17,7 @@ def test_retranslate_completed_meeting_preserves_source_and_notes(tmp_path):
         mid = create(client)
         with client.websocket_connect(f'/ws/{mid}') as ws:
             ws.receive_json()
-            ws.send_json({'type':'text','text':'需要重译的原文。'})
+            ws.send_json({'type':'text','text':'Source text requiring retranslation.'})
             ws.send_json({'type':'finish'})
             until(ws,lambda e:e['type']=='finished')
             before = client.get(f'/api/meetings/{mid}').json()

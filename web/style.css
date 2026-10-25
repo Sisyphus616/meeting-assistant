@@ -6,3 +6,4 @@
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 
 .transcript-actions{display:flex;gap:15px;align-items:center;font-size:11px;color:#a1a1aa}.transcript-actions .text-button{font-size:10px;text-decoration:none}.transcript-actions .text-button:hover{text-decoration:underline}
+.segment.draft{border-left:2px solid #d4d4d8;padding-left:12px}.draft .segment-kind{color:#71717a}.draft .segment-text{color:#71717a;white-space:pre-wrap}

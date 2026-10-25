@@ -5,7 +5,7 @@ const base = new URL('./', location.href);
 const url = path => new URL(path, base).href;
 const state = {health: null, meeting: null, socket: null, connected: false,
   demoTimer: null, demoPlaying: false, demoBusy: false, microphone: null,
-  recording: false, audioPending: 0, elapsed: 0, started: 0, filter: '',
+  recording: false, preparing: false, drafts: new Map(), audioPending: 0, elapsed: 0, started: 0, filter: '',
   finishing: false, summaryRunning: false, retranslating: false, reconnect: null, generation: 0, ping: null};
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -52,13 +52,13 @@ function setConnection(connected, label) {
   renderControls();
 }
 async function openMeeting(id) {
-  if (state.recording || state.demoPlaying || state.finishing) {
+  if (state.recording || state.preparing || state.demoPlaying || state.finishing) {
     toast('请先暂停录音／演示并等待结束操作完成，再切换记录。', true);
     return;
   }
   const generation = ++state.generation;
   clearTimeout(state.reconnect); clearInterval(state.ping);
-  state.socket?.close(); state.audioPending = 0;
+  state.socket?.close(); state.audioPending = 0; state.drafts.clear();
   setConnection(false, '正在连接');
   const meeting = await api(`api/meetings/${id}`);
   if (generation !== state.generation) return;
@@ -91,10 +91,15 @@ function connect(id, generation) {
       try { message = JSON.parse(event.data); } catch { return; }
       if (message.type === 'snapshot') {
         state.meeting = message.meeting;
+        state.drafts = new Map((message.drafts || []).map(d => [d.utterance_id, d]));
         state.summaryRunning = message.summary_running;
         state.retranslating = Boolean(message.retranslating);
         state.finishing = message.meeting.status === 'finishing';
         renderMeeting(); renderMetrics(message.metrics);
+      } else if (message.type === 'transcript_partial') {
+        state.drafts.set(message.utterance_id, {...message,pending:state.drafts.get(message.utterance_id)?.pending}); renderTranscript();
+      } else if (message.type === 'transcript_final') {
+        state.drafts.delete(message.utterance_id); renderTranscript();
       } else if (message.type === 'metrics') renderMetrics(message.metrics);
       else if (message.type === 'error') toast(message.message, true);
       else if (message.type === 'notice') toast(message.message);
@@ -122,7 +127,7 @@ function connect(id, generation) {
   });
 }
 async function createMeeting(values) {
-  if (state.recording || state.demoPlaying || state.finishing) throw new Error('请先暂停当前录音／演示。');
+  if (state.recording || state.preparing || state.demoPlaying || state.finishing) throw new Error('请先暂停当前录音／演示。');
   const meeting = await api('api/meetings', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(values)});
   await openMeeting(meeting.id);
   return meeting;
@@ -132,7 +137,7 @@ async function ensureMeeting() {
     if (!state.connected) throw new Error('实时连接正在恢复，请稍后重试。');
     return;
   }
-  await createMeeting({title: `${state.health.provider === 'demo' ? '课堂演示' : '课堂记录'} · ${new Date().toLocaleDateString('zh-CN')}`,source:'zh',target:'en'});
+  await createMeeting({});
 }
 
 function renderMeeting() {
@@ -147,31 +152,42 @@ function renderMeeting() {
   $('segment-count').textContent = `${m.segments.length} 条原文`;
   $('word-count').textContent = m.segments.reduce((n,s) => n + s.text.replace(/\s/g,'').length, 0);
   $('summary-count').textContent = m.summaries.length;
-  const last = [...m.segments].reverse().find(s => s.translation_ms != null);
+  const last = [...m.segments].reverse().find(s => s.translation_ms != null && !s.translation_skipped);
   $('latency').textContent = last ? `${Math.round(last.translation_ms)} ms` : '—';
   $('export-button').disabled = false;
   renderTranscript(); renderNotes(); renderControls();
 }
 function renderTranscript() {
-  if (!state.meeting?.segments.length) return;
+  if (!state.meeting) return;
   const container = $('transcript');
+  if (!state.meeting.segments.length && !state.drafts.size) {
+    if (container.querySelector('.draft')) container.innerHTML = '<div class="empty-state"><p>暂无转写</p></div>';
+    return;
+  }
   const oldTop = container.scrollTop;
   const segments = state.meeting.segments.filter(s => `${s.text} ${s.translation}`.toLowerCase().includes(state.filter));
   // Reuse unchanged segment nodes so an active audio player survives metrics and translation updates.
-  const existing = new Map([...container.querySelectorAll('.segment')].map(el => [Number(el.dataset.id), el]));
+  const existing = new Map([...container.querySelectorAll('.segment[data-id]')].map(el => [Number(el.dataset.id), el]));
   const fragment = document.createDocumentFragment();
   for (const s of segments) {
-    const signature = JSON.stringify([s.text,s.translation,s.error,s.translation_ms]);
+    const signature = JSON.stringify([s.text,s.translation,s.error,s.translation_ms,s.translation_skipped]);
     let item = existing.get(s.id);
     if (!item || item.dataset.signature !== signature) {
       item = document.createElement('section'); item.className = 'segment'; item.id = `segment-${s.id}`;
       item.dataset.id = s.id; item.dataset.signature = signature;
-      item.innerHTML = `<div class="segment-top"><span class="segment-time">${clock(s.start_ms)}</span><span class="segment-kind">${state.meeting.provider === 'demo' ? '演示样本' : s.audio_path ? '语音识别' : '文字输入'}</span>${s.audio_path ? `<button class="icon-button segment-play" data-audio="${s.id}" aria-label="播放第 ${s.id} 段录音">${icon('play')}</button>` : ''}</div><p class="segment-text">${escapeHTML(s.text)}</p><p class="segment-translation${s.error ? ' error' : !s.translation ? ' pending' : ''}">${escapeHTML(s.error ? `翻译失败：${s.error}` : s.translation || '正在翻译…')}</p>`;
+      item.innerHTML = `<div class="segment-top"><span class="segment-time">${clock(s.start_ms)}</span><span class="segment-kind">${state.meeting.provider === 'demo' ? '演示样本' : s.audio_path ? '语音识别' : '文字输入'}</span>${s.audio_path ? `<button class="icon-button segment-play" data-audio="${s.id}" aria-label="播放第 ${s.id} 句的来源录音" title="播放来源录音；同片段内的句子共用录音">${icon('play')}</button>` : ''}</div><p class="segment-text">${escapeHTML(s.text)}</p>${s.translation_skipped ? '' : `<p class="segment-translation${s.error ? ' error' : !s.translation ? ' pending' : ''}">${escapeHTML(s.error ? `翻译失败：${s.error}` : s.translation || '正在翻译…')}</p>`}`;
     }
     fragment.append(item);
   }
+  for (const draft of state.drafts.values()) {
+    if (state.filter && !String(draft.text || '').toLowerCase().includes(state.filter)) continue;
+    const item = document.createElement('section'); item.className = 'segment draft';
+    item.dataset.utterance = draft.utterance_id;
+    item.innerHTML = `<div class="segment-top"><span class="segment-time">${clock(draft.start_ms)}</span><span class="segment-kind">${draft.pending ? '确认中' : '实时转写'}</span></div><p class="segment-text">${escapeHTML(draft.text || '正在识别…')}</p>`;
+    fragment.append(item);
+  }
   container.replaceChildren(fragment);
-  if (!segments.length) container.innerHTML = '<p class="no-results">没有找到匹配的内容</p>';
+  if (!container.childElementCount) container.innerHTML = '<p class="no-results">没有找到匹配的内容</p>';
   if ($('auto-scroll').checked && !state.filter) container.scrollTop = container.scrollHeight;
   else container.scrollTop = oldTop;
 }
@@ -199,20 +215,20 @@ function renderControls() {
   $('demo-button').hidden = real;
   $('demo-button').disabled = state.finishing || (state.meeting && live() && !state.connected);
   $('demo-button').innerHTML = `${icon(state.demoPlaying ? 'pause' : 'play')}<span>${state.demoPlaying ? '暂停示例' : '播放示例'}</span>`;
-  $('mic-button').disabled = !real || state.finishing || (state.meeting && live() && !state.connected);
-  $('mic-button').innerHTML = `${icon(state.recording ? 'pause' : 'mic')}<span>${state.recording ? '暂停录音' : '开始录音'}</span>`;
+  $('mic-button').disabled = !real || state.preparing || state.finishing || (state.meeting && live() && !state.connected);
+  $('mic-button').innerHTML = `${icon(state.recording ? 'pause' : 'mic')}<span>${state.preparing ? '准备中…' : state.recording ? '暂停录音' : '开始录音'}</span>`;
   $('mic-button').title = real ? '使用本机麦克风，音频发送到当前后端识别' : '演示模式不识别麦克风，请配置 Qwen 模式';
-  $('upload-button').disabled = !real || state.recording || state.finishing;
-  $('finish-button').disabled = !live() || !state.connected || state.finishing;
+  $('upload-button').disabled = !real || state.recording || state.preparing || state.finishing;
+  $('finish-button').disabled = !live() || !state.connected || state.preparing || state.finishing;
   $('retranslate-button').hidden = !real;
-  $('retranslate-button').disabled = !state.connected || !state.meeting?.segments.length || state.finishing || state.recording || state.retranslating || state.meeting?.provider !== state.health.provider;
+  $('retranslate-button').disabled = !state.connected || !state.meeting?.segments.length || state.finishing || state.preparing || state.recording || state.retranslating || state.meeting?.provider !== state.health.provider;
   $('retranslate-button').textContent = state.retranslating ? '重译中…' : '重新翻译';
-  $('new-meeting').disabled = state.recording || state.demoPlaying || state.finishing;
-  $('text-input').disabled = state.finishing || state.recording;
-  $('text-form').querySelector('button').disabled = state.finishing || state.recording;
+  $('new-meeting').disabled = state.recording || state.preparing || state.demoPlaying || state.finishing;
+  $('text-input').disabled = state.finishing || state.preparing || state.recording;
+  $('text-form').querySelector('button').disabled = state.finishing || state.preparing || state.recording;
   $('recording-icon').classList.toggle('recording', state.recording || state.demoPlaying);
-  $('recording-title').textContent = state.finishing ? '处理中' : state.recording ? '录音中' : state.demoPlaying ? '示例播放中' : '未录音';
-  $('recording-description').textContent = state.finishing ? '等待现有任务完成' : state.demoPlaying ? '预设样本' : '';
+  $('recording-title').textContent = state.preparing ? '准备录音' : state.finishing ? '处理中' : state.recording ? '录音中' : state.demoPlaying ? '示例播放中' : '未录音';
+  $('recording-description').textContent = state.preparing ? '正在准备模型' : state.finishing ? '等待现有任务完成' : state.demoPlaying ? '预设样本' : '';
 }
 function pauseDemo() {
   clearInterval(state.demoTimer); state.demoTimer = null; state.demoPlaying = false;
@@ -234,87 +250,79 @@ async function toggleDemo() {
   } finally { state.demoBusy = false; }
 }
 
-// AudioWorklet -> browser-side energy VAD -> utterance PCM -> WebSocket.
-// This is bounded utterance recognition, not a cached streaming ASR decoder.
+// Cumulative audio previews produce rolling subtitles while capture continues.
+// Final ASR is split into sentences; previews never trigger translation/minutes.
 async function startMicrophone() {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('麦克风需要 localhost 或 HTTPS，请通过 http://localhost:8765 打开。');
   if (state.health.provider !== 'qwen') throw new Error('请先启用 Qwen 模式。');
   await ensureMeeting();
-  const stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true},video:false});
-  let context;
+  state.preparing = true; renderControls();
+  let context, stream;
   try {
+    stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true},video:false});
     context = new AudioContext();
+    await context.resume();
+    const prepared = await api('api/asr/prepare', {method:'POST', signal:AbortSignal.timeout(180000)});
+    for (const warning of prepared.warnings || []) toast(warning,true);
+    if (!state.connected || !live()) throw new Error('连接已断开，请重新开始录音。');
     await context.audioWorklet.addModule(url('static/pcm-worklet.js'));
     await context.resume();
     const source = context.createMediaStreamSource(stream);
     const worklet = new AudioWorkletNode(context,'pcm-processor');
     const mute = context.createGain(); mute.gain.value = 0;
     source.connect(worklet); worklet.connect(mute); mute.connect(context.destination);
-    const recorder = {stream,context,source,worklet,mute,frames:[],pre:[],voiced:0,silence:0,samples:0,cursor:state.elapsed,start:state.elapsed,rms:0,flushResolve:null};
+    const recorder = {stream,context,source,worklet,mute,rms:0,flushResolve:null};
+    recorder.chunker = new SpeechChunker({cursor:state.elapsed,
+      onPreview:(pcm,start,id)=>sendAudio(recorder,pcm,start,id,true),
+      onFinal:(pcm,start,id)=>sendAudio(recorder,pcm,start,id,false)});
     state.microphone = recorder; state.recording = true; state.started = performance.now();
     worklet.port.onmessage = ({data}) => {
       if (data.flushed) { recorder.flushResolve?.(); return; }
       if (!data.pcm) return;
       const pcm = new Int16Array(data.pcm);
-      let sum = 0; for (const n of pcm) sum += (n/32768)**2;
-      const rms = Math.sqrt(sum/pcm.length); recorder.rms = rms;
-      recorder.cursor += pcm.length/16;
-      const voice = rms > .012;
-      if (!recorder.frames.length) {
-        recorder.pre.push(pcm);
-        if (recorder.pre.length > 10) recorder.pre.shift();
-        if (!voice) return;
-        recorder.frames = recorder.pre; recorder.pre = [];
-        recorder.samples = recorder.frames.reduce((n,x) => n+x.length,0);
-        recorder.start = recorder.cursor - recorder.samples/16;
-        recorder.voiced = pcm.length; recorder.silence = 0;
-      } else {
-        recorder.frames.push(pcm); recorder.samples += pcm.length;
-        if (voice) { recorder.voiced += pcm.length; recorder.silence = 0; }
-        else recorder.silence += pcm.length;
-      }
-      if (recorder.silence >= 11200 || recorder.samples >= 160000) flushUtterance(recorder);
+      recorder.chunker.push(pcm); recorder.rms = recorder.chunker.rms;
     };
     renderControls();
   } catch(error) {
-    stream.getTracks().forEach(track => track.stop());
+    stream?.getTracks().forEach(track => track.stop());
     if (context && context.state !== 'closed') await context.close();
     state.microphone = null; state.recording = false;
     throw error;
+  } finally {
+    state.preparing = false; renderControls();
   }
 }
-function flushUtterance(recorder) {
-  if (recorder.voiced < 4000 || !recorder.samples) {
-    recorder.frames=[]; recorder.samples=0; recorder.voiced=0; recorder.silence=0;
-    return;
-  }
-  const pcm = new Int16Array(recorder.samples); let offset=0;
-  for (const part of recorder.frames) { pcm.set(part,offset); offset+=part.length; }
-  const start = recorder.start;
-  recorder.frames=[]; recorder.samples=0; recorder.voiced=0; recorder.silence=0;
-  if (state.audioPending >= 3) {
+function sendAudio(recorder, pcm, start, id, preview) {
+  if (preview && state.audioPending >= 3) return;
+  if (!preview && state.audioPending >= 3) {
     // Stop capture and preserve this last chunk: never silently drop recognized speech.
     toast('处理速度暂时跟不上录音，已暂停采集。现有片段将继续处理，请等待后再开始。',true);
-    stopMicrophone().catch(() => {});
+    queueMicrotask(() => stopMicrophone().catch(() => {}));
   }
   let bytes = ''; const values = new Uint8Array(pcm.buffer);
   for (let i=0;i<values.length;i+=8192) bytes += String.fromCharCode(...values.subarray(i,i+8192));
   try {
-    send({type:'audio',pcm16:btoa(bytes),sample_rate:16000,start_ms:Math.round(start)});
-    state.audioPending++;
+    send({type:preview?'audio_preview':'audio',utterance_id:id,pcm16:btoa(bytes),sample_rate:16000,start_ms:Math.round(start)});
+    const current = state.drafts.get(id) || {utterance_id:id,start_ms:start,text:''};
+    state.drafts.set(id,{...current,pending:!preview}); renderTranscript();
+    if (!preview) state.audioPending++;
   } catch(error) { toast(`该音频片段未发送：${error.message}`,true); }
 }
-async function stopMicrophone() {
+function stopMicrophone() {
   const recorder = state.microphone;
-  if (!recorder || recorder.stopping) return;
+  if (!recorder) return Promise.resolve();
+  if (!recorder.stopPromise) recorder.stopPromise = finishMicrophone(recorder);
+  return recorder.stopPromise;
+}
+async function finishMicrophone(recorder) {
   recorder.stopping = true;
   recorder.stream.getTracks().forEach(track => track.stop());
   await new Promise(resolve => {
     recorder.flushResolve=resolve; recorder.worklet.port.postMessage('flush');
     setTimeout(resolve,250);
   });
-  flushUtterance(recorder);
-  state.elapsed = Math.max(elapsed(), recorder.cursor);
+  recorder.chunker.flush();
+  state.elapsed = Math.max(elapsed(), recorder.chunker.cursor / 16);
   state.recording=false; state.microphone=null;
   recorder.source.disconnect(); recorder.worklet.disconnect(); recorder.mute.disconnect();
   if (recorder.context.state !== 'closed') await recorder.context.close();
@@ -322,7 +330,8 @@ async function stopMicrophone() {
 }
 
 $('new-meeting').onclick = () => {
-  $('new-title').value = `智能计算系统 · ${new Date().toLocaleDateString('zh-CN')}`;
+  $('new-form').reset();
+  $('new-title').value = '新会议';
   $('new-dialog').showModal();
 };
 $('new-form').onsubmit = async event => {
@@ -400,7 +409,13 @@ $('settings-button').onclick=async()=>{
 $('upload-button').onclick=()=>$('audio-file').click();
 $('audio-file').onchange=async event=>{
   const file=event.target.files[0];if(!file)return;
-  try{if(file.size>20*1024*1024)throw new Error('文件不能超过 20MB。');await ensureMeeting();const body=new FormData();body.append('file',file);await api(`api/meetings/${state.meeting.id}/upload`,{method:'POST',body});toast('录音已接收，将按片段依次识别。');}
+  try{
+    if(file.size>20*1024*1024)throw new Error('文件不能超过 20MB。');
+    await ensureMeeting();const body=new FormData();body.append('file',file);
+    const result=await api(`api/meetings/${state.meeting.id}/upload`,{method:'POST',body});
+    toast(`录音已接收，检测到 ${result.chunk_count} 个语音片段。`);
+    if(result.forced_chunks)toast(`其中 ${result.forced_chunks} 个连续语音片段触发了 30 秒上限，已进行兜底切分。`);
+  }
   catch(e){toast(e.message,true);}finally{event.target.value='';}
 };
 
@@ -435,7 +450,7 @@ function draw(){
 }
 requestAnimationFrame(draw);
 window.addEventListener('beforeunload',event=>{
-  if(state.recording||state.demoPlaying||state.finishing){event.preventDefault();event.returnValue='';}
+  if(state.recording||state.preparing||state.demoPlaying||state.finishing){event.preventDefault();event.returnValue='';}
 });
 async function init(){
   try{

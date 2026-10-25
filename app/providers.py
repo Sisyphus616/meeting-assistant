@@ -1,9 +1,13 @@
 """Demo and real Qwen adapters. Heavy dependencies load only in real mode."""
 import re
 import time
+import tempfile
+import wave
+import math
 from pathlib import Path
 
 from .config import Settings
+from .audio import SAMPLE_RATE, write_pcm
 from .translation import HyMTTranslator
 
 DEMO = [
@@ -54,6 +58,7 @@ class QwenProvider:
         self.asr = self.processor = self.llm = self.tokenizer = None
         self.device = None
         self.dtype = None
+        self.translation_ready = self.llm_ready = False
         self.translator = HyMTTranslator(settings)
 
     def _torch(self):
@@ -70,8 +75,8 @@ class QwenProvider:
         self.dtype = (torch.float16 if self.device.startswith('cuda') else torch.float32) if dtype == 'auto' else getattr(torch, dtype)
         return torch
 
-    def transcribe(self, path: Path, source: str, glossary: str):
-        torch = self._torch()
+    def _load_asr(self):
+        self._torch()
         from transformers import AutoModelForMultimodalLM, AutoProcessor
         if self.asr is None:
             self.processor = AutoProcessor.from_pretrained(self.settings.asr_model, local_files_only=self.settings.local_only)
@@ -79,13 +84,57 @@ class QwenProvider:
                 self.settings.asr_model, dtype=self.dtype,
                 attn_implementation='sdpa', local_files_only=self.settings.local_only,
             ).to(self.device).eval()
+
+    def prepare_asr(self):
+        self._load_asr()
+        # Touch the ASR model again after another model or browser has displaced
+        # its pages. Match the first 800ms preview; no synthetic text is shown.
+        with tempfile.TemporaryDirectory(prefix='meeting-asr-warmup-') as directory:
+            path = Path(directory) / 'silence.wav'
+            write_pcm(path, b'\0\0' * (SAMPLE_RATE * 4 // 5))
+            self._decode(path, 'zh', '', max_tokens=1)
+
+    def prepare_recording(self):
+        warnings = []
+        if not self.translation_ready and self.settings.translation_backend != 'compatible':
+            try:
+                self.translator.translate('Hello.', 'zh', '', '')
+                self.translation_ready = True
+            except Exception as exc:
+                warnings.append(f'翻译模型准备失败，原文识别仍可使用：{str(exc)[:300]}')
+        if not self.llm_ready and self.settings.llm_backend != 'compatible':
+            try:
+                self._chat('只输出数字1。', '1', 1)
+                self.llm_ready = True
+            except Exception as exc:
+                warnings.append(f'纪要模型准备失败，原文识别仍可使用：{str(exc)[:300]}')
+        # Keep ASR last so the first captured speech avoids cold page faults.
+        self.prepare_asr()
+        return warnings
+
+    def transcribe(self, path: Path, source: str, glossary: str):
+        self._load_asr()
+        with wave.open(str(path), 'rb') as audio:
+            duration = audio.getnframes() / audio.getframerate()
+        # Uploaded pause-based clips can be longer than live preview windows.
+        # Keep enough decoder budget instead of silently truncating a long turn.
+        budget = min(768, max(192, math.ceil(duration * 20))) if duration > 15 else 192
+        return self._decode(path, source, glossary, max_tokens=budget)
+
+    def _decode(self, path, source, glossary, max_tokens=192):
+        torch = self._torch()
         kwargs = {'audio': str(path), 'prompt': f'Vocabulary: {glossary}' if glossary else ''}
         if source != 'auto':
             kwargs['language'] = {'zh': 'Chinese', 'en': 'English'}[source]
         inputs = self.processor.apply_transcription_request(**kwargs).to(self.device, self.dtype)
         with torch.inference_mode():
-            outputs = self.asr.generate(**inputs, max_new_tokens=192, do_sample=False)
+            outputs = self.asr.generate(**inputs, max_new_tokens=max_tokens, do_sample=False)
         ids = outputs[:, inputs['input_ids'].shape[1]:]
+        if max_tokens > 1 and ids.shape[1] >= max_tokens:
+            eos = self.asr.generation_config.eos_token_id
+            eos = [eos] if isinstance(eos, int) else (eos or [])
+            if int(ids[0, -1].item()) not in eos:
+                raise RuntimeError('该段识别输出超过长度上限，来源录音已保留。')
         return self.processor.decode(ids, return_format='transcription_only')[0].strip()
 
     def _chat(self, system, prompt, max_tokens):

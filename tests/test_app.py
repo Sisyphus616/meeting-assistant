@@ -46,8 +46,8 @@ def test_demo_pipeline_exports_and_restart(tmp_path):
             until(ws, lambda event: event['type'] == 'finished')
         meeting = client.get(f'/api/meetings/{mid}').json()
         assert meeting['status'] == 'completed'
-        assert [s['text'] for s in meeting['segments']] == [row[0] for row in DEMO]
-        assert [s['translation'] for s in meeting['segments']] == [row[1] for row in DEMO]
+        assert [s['text'] for s in meeting['segments']] == [row[1] for row in DEMO]
+        assert [s['translation'] for s in meeting['segments']] == [row[0] for row in DEMO]
         covered = [sid for summary in meeting['summaries'] for sid in summary['segment_ids']]
         assert sorted(covered) == [s['id'] for s in meeting['segments']]
         assert len(covered) == len(set(covered))
@@ -93,7 +93,7 @@ class FakeQwen:
         with wave.open(str(path)) as audio:
             assert audio.getframerate() == 16000
             assert audio.getnchannels() == 1
-        return '这是实际音频路径的接口测试。'
+        return 'This is a real audio transport test.'
 
     def translate(self, text, target, context, glossary):
         return 'This is an audio pipeline integration test.'
@@ -146,7 +146,7 @@ def test_wav_upload_resample_and_final_drain(tmp_path):
             ws.send_json({'type':'finish'})
             until(ws,lambda e:e['type']=='finished')
         meeting = client.get(f'/api/meetings/{mid}').json()
-        assert len(meeting['segments']) == 2
+        assert len(meeting['segments']) == 1  # Eleven seconds without a pause stays intact.
         assert meeting['segments'][-1]['end_ms'] == 11000
         assert len(meeting['summaries']) >= 1
 
@@ -159,7 +159,7 @@ def test_translation_errors_are_persisted_not_faked(tmp_path):
         mid = create(client)
         with client.websocket_connect(f'/ws/{mid}') as ws:
             ws.receive_json()
-            ws.send_json({'type':'text','text':'测试错误'})
+            ws.send_json({'type':'text','text':'Test translation failure.'})
             until(ws,lambda e:e['type']=='error')
             ws.send_json({'type':'finish'})
             until(ws,lambda e:e['type']=='finished')

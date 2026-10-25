@@ -3,11 +3,106 @@ import binascii
 import io
 import wave
 from pathlib import Path
+from dataclasses import dataclass
+import math
 
 import numpy as np
 
 SAMPLE_RATE = 16000
 MAX_CHUNK_SECONDS = 15
+
+
+@dataclass(frozen=True)
+class AudioSpan:
+    start: int  # Sample indices in the original normalized upload.
+    end: int
+    boundary: str
+
+
+def split_upload(pcm: bytes, max_seconds=30, pause_ms=350):
+    """Find pause-separated speech, preserving original sample offsets.
+
+    This is energy-based acoustic segmentation, not semantic sentence inference.
+    Very long speech searches a short quiet gap before the length ceiling, then
+    a low-energy region as a bounded fallback. No fixed ten-second cuts.
+    """
+    if not pcm or len(pcm) % 2:
+        raise ValueError('音频 PCM 数据不完整。')
+    if max_seconds < 5 or pause_ms < 100:
+        raise ValueError('音频切分参数无效。')
+    values = np.frombuffer(pcm, dtype='<i2').astype(np.float32) / 32768
+    frame = SAMPLE_RATE // 50  # 20ms; look ahead over the whole file.
+    count = math.ceil(len(values) / frame)
+    padded = np.pad(values, (0, count * frame - len(values)))
+    rms = np.sqrt(np.mean(padded.reshape(-1, frame) ** 2, axis=1))
+    positive = rms[rms > 1.5 / 32768]
+    if not positive.size:
+        return []
+    low, high = float(np.percentile(rms, 10)), float(np.percentile(positive, 90))
+    threshold = max(1.5 / 32768, low + (high - low) * .12 if high > low * 1.5 else high * .2)
+    voiced = np.flatnonzero(rms > threshold)
+    if not voiced.size:
+        return []
+    pause_frames = math.ceil(pause_ms / 20)
+    groups = np.split(voiced, np.flatnonzero(np.diff(voiced) > pause_frames) + 1)
+    groups = [(int(g[0]) * frame, min(len(values), (int(g[-1]) + 1) * frame), len(g)) for g in groups]
+    # Keep brief tail sounds / interjections with nearby context. Otherwise a
+    # single click at the end of a recording can become an extra ASR sentence.
+    i = 0
+    while i < len(groups):
+        start, end, voice_frames = groups[i]
+        if voice_frames >= 10:
+            i += 1
+            continue
+        before = start - groups[i - 1][1] if i else float('inf')
+        after = groups[i + 1][0] - end if i + 1 < len(groups) else float('inf')
+        if min(before, after) <= SAMPLE_RATE:
+            if before <= after:
+                previous = groups[i - 1]
+                groups[i - 1] = previous[0], end, previous[2] + voice_frames
+            else:
+                following = groups[i + 1]
+                groups[i + 1] = start, following[1], following[2] + voice_frames
+            groups.pop(i)
+        elif voice_frames < 4:
+            groups.pop(i)
+        else:
+            i += 1
+    groups = [(start, end) for start, end, _ in groups]
+    spans = []
+    maximum = int(max_seconds * SAMPLE_RATE)
+    for i, (voice_start, voice_end) in enumerate(groups):
+        left = (groups[i - 1][1] + voice_start) // 2 if i else 0
+        right = (voice_end + groups[i + 1][0]) // 2 if i + 1 < len(groups) else len(values)
+        start = max(left, voice_start - int(.24 * SAMPLE_RATE))
+        end = min(right, voice_end + int(.16 * SAMPLE_RATE))
+        while end - start > maximum:
+            limit = start + maximum
+            lo = math.ceil(max(start + 2 * SAMPLE_RATE, limit - 5 * SAMPLE_RATE) / frame)
+            hi = limit // frame
+            quiet = np.flatnonzero(rms[lo:hi] <= threshold)
+            runs = np.split(quiet, np.flatnonzero(np.diff(quiet) > 1) + 1) if quiet.size else []
+            candidates = [g for g in runs if len(g) >= 4]  # At least 80ms of quiet.
+            if candidates:
+                gap = candidates[-1]
+                cut = int((lo + (int(gap[0]) + int(gap[-1]) + 1) / 2) * frame)
+                reason = 'short_pause'
+            else:
+                local = rms[lo:hi]
+                if len(local) >= 5 and float(local.max() - local.min()) > threshold * .1:
+                    smooth = np.convolve(local, np.ones(5) / 5, mode='valid')
+                    # Prefer the latest equivalent valley, rather than cutting
+                    # all constant-volume input five seconds before the cap.
+                    index = int(np.flatnonzero(smooth <= smooth.min() + 1e-7)[-1])
+                    cut = (lo + index + 2) * frame
+                else:
+                    cut = limit
+                reason = 'length'
+            cut = max(start + frame, min(cut, limit))
+            spans.append(AudioSpan(start, cut, reason))
+            start = cut
+        spans.append(AudioSpan(start, end, 'pause' if i + 1 < len(groups) else 'end'))
+    return spans
 
 
 def write_pcm(path: Path, pcm: bytes):

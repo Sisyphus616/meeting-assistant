@@ -11,6 +11,12 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def segment_dict(row):
+    result = dict(row)
+    result['translation_skipped'] = bool(result['translation_skipped'])
+    return result
+
+
 class Store:
     def __init__(self, directory: Path):
         self.directory = Path(directory)
@@ -29,7 +35,8 @@ class Store:
                     meeting_id TEXT NOT NULL REFERENCES meetings(id), text TEXT NOT NULL,
                     translation TEXT NOT NULL DEFAULT '', start_ms INTEGER NOT NULL,
                     end_ms INTEGER NOT NULL, asr_ms REAL, translation_ms REAL,
-                    audio_path TEXT, error TEXT, created_at TEXT NOT NULL
+                    audio_path TEXT, error TEXT, created_at TEXT NOT NULL,
+                    translation_skipped INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS summaries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,6 +46,8 @@ class Store:
                 CREATE INDEX IF NOT EXISTS segments_meeting ON segments(meeting_id, id);
                 CREATE INDEX IF NOT EXISTS summaries_meeting ON summaries(meeting_id, id);
             ''')
+            if 'translation_skipped' not in {row['name'] for row in db.execute('PRAGMA table_info(segments)')}:
+                db.execute('ALTER TABLE segments ADD COLUMN translation_skipped INTEGER NOT NULL DEFAULT 0')
             # A stopped process cannot retain an actively recording meeting.
             db.execute("UPDATE meetings SET status='interrupted' WHERE status IN ('live','finishing')")
 
@@ -73,7 +82,7 @@ class Store:
             if not row:
                 return None
             result = dict(row)
-            result['segments'] = [dict(r) for r in db.execute(
+            result['segments'] = [segment_dict(r) for r in db.execute(
                 'SELECT * FROM segments WHERE meeting_id=? ORDER BY id', (mid,))]
             result['summaries'] = []
             for r in db.execute('SELECT * FROM summaries WHERE meeting_id=? ORDER BY id', (mid,)):
@@ -82,18 +91,20 @@ class Store:
                 result['summaries'].append(item)
             return result
 
-    def segment(self, mid, text, start_ms, end_ms, asr_ms=None, audio_path=None):
+    def segment(self, mid, text, start_ms, end_ms, asr_ms=None, audio_path=None, skip_translation=False):
         with self.connect() as db:
             cur = db.execute('''INSERT INTO segments
-                (meeting_id,text,start_ms,end_ms,asr_ms,audio_path,created_at) VALUES (?,?,?,?,?,?,?)''',
-                (mid, text, start_ms, end_ms, asr_ms, audio_path, now()))
-            return dict(db.execute('SELECT * FROM segments WHERE id=?', (cur.lastrowid,)).fetchone())
+                (meeting_id,text,start_ms,end_ms,asr_ms,audio_path,created_at,translation_skipped,translation_ms)
+                VALUES (?,?,?,?,?,?,?,?,?)''',
+                (mid, text, start_ms, end_ms, asr_ms, audio_path, now(),
+                 int(skip_translation), 0 if skip_translation else None))
+            return segment_dict(db.execute('SELECT * FROM segments WHERE id=?', (cur.lastrowid,)).fetchone())
 
-    def translate(self, sid, text, latency_ms, error=None):
+    def translate(self, sid, text, latency_ms, error=None, skipped=False):
         with self.connect() as db:
-            db.execute('UPDATE segments SET translation=?,translation_ms=?,error=? WHERE id=?',
-                       (text, latency_ms, error, sid))
-            return dict(db.execute('SELECT * FROM segments WHERE id=?', (sid,)).fetchone())
+            db.execute('UPDATE segments SET translation=?,translation_ms=?,error=?,translation_skipped=? WHERE id=?',
+                       (text, latency_ms, error, int(skipped), sid))
+            return segment_dict(db.execute('SELECT * FROM segments WHERE id=?', (sid,)).fetchone())
 
     def summary(self, mid, content, ids, latency_ms):
         with self.connect() as db:

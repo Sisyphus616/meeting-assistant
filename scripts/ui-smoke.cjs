@@ -63,20 +63,51 @@ function wav(){
     await page.click('#finish-button');await page.waitForSelector('#session-status:text-is("已完成")');
     await page.reload();await page.waitForSelector('#session-status:text-is("已完成")');
     assert.equal(await page.locator('.segment').count(),8);
-    await page.click('#new-meeting');await page.fill('#new-title','新的课堂');await page.click('#new-form [type=submit]');
+    await page.click('#new-meeting');
+    assert.equal(await page.inputValue('#new-title'),'新会议');
+    assert.equal(await page.inputValue('#new-form [name=source]'),'en');
+    assert.equal(await page.inputValue('#new-form [name=target]'),'zh');
+    assert.equal(await page.inputValue('#new-form [name=glossary]'),'');
+    await page.fill('#new-title','新的课堂');await page.click('#new-form [type=submit]');
     await page.waitForSelector('#meeting-title:text-is("新的课堂")');
     assert.equal(await page.locator('.segment').count(),0);assert.equal(await page.locator('.note-card').count(),0);
     await page.fill('#text-input','<img src=x onerror=alert(1)>');await page.click('#text-form button');
     await page.waitForFunction(()=>document.querySelector('.segment-translation')?.textContent.includes('未调用翻译模型'));
     assert.equal(await page.locator('.segment img').count(),0);
     assert.match(await page.locator('.segment-text').textContent(),/<img/);
+    await page.fill('#text-input','这句中文保留原文。');await page.click('#text-form button');
+    await page.waitForFunction(()=>document.querySelectorAll('.segment').length===2);
+    const chinese=page.locator('.segment').filter({hasText:'这句中文保留原文。'});
+    await page.waitForFunction(()=>{
+      const row=[...document.querySelectorAll('.segment')].find(s=>s.textContent.includes('这句中文保留原文。'));
+      return row&&!row.querySelector('.segment-translation');
+    });
+    assert.equal(await chinese.locator('.segment-translation').count(),0);
     await page.setViewportSize({width:390,height:844});await page.waitForTimeout(350);await page.screenshot({path:path.join(artifacts,'mobile.png'),fullPage:true});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile horizontal overflow');
     const context=await browser.newContext({permissions:['microphone'],viewport:{width:1366,height:900}});
+    await context.addInitScript(()=>{
+      navigator.mediaDevices.getUserMedia=async()=>{
+        const ctx=new AudioContext();await ctx.resume();
+        const oscillator=ctx.createOscillator(),gain=ctx.createGain(),destination=ctx.createMediaStreamDestination();
+        oscillator.frequency.value=220;
+        gain.gain.setValueAtTime(.05,ctx.currentTime);
+        gain.gain.setValueAtTime(0,ctx.currentTime+3);
+        gain.gain.setValueAtTime(.05,ctx.currentTime+4.2);
+        oscillator.connect(gain);gain.connect(destination);oscillator.start();
+        return destination.stream;
+      };
+    });
     const audio=await context.newPage();audio.on('pageerror',e=>errors.push(e.message));
     await audio.goto('http://127.0.0.1:8777');await audio.waitForSelector('#mode-badge:text-is("本地模型")');
     await audio.click('#mic-button');await audio.waitForSelector('#recording-title:text-is("录音中")');
-    await audio.waitForFunction(()=>document.querySelectorAll('.segment').length>0,{},{timeout:20000});
+    await audio.waitForFunction(()=>document.querySelector('.draft .segment-text')?.textContent.includes('第一句话'),{},{timeout:10000});
+    assert.equal(await audio.locator('#recording-title').textContent(),'录音中','draft must appear during capture');
+    await audio.screenshot({path:path.join(artifacts,'desktop-live.png'),fullPage:true});
+    await audio.waitForFunction(()=>document.querySelectorAll('.segment[data-id]').length===2,{},{timeout:10000});
+    assert.equal(await audio.locator('#recording-title').textContent(),'录音中','sentence finals must arrive without stopping capture');
+    assert.equal(await audio.locator('.segment[data-id] .segment-text').first().textContent(),'第一句话已经识别。');
+    await audio.waitForFunction(()=>document.querySelector('.draft .segment-text')?.textContent.includes('第一句话'),{},{timeout:10000});
     await audio.click('#mic-button');await audio.waitForSelector('#recording-title:text-is("未录音")');
     await audio.waitForTimeout(500);
     const mid=await audio.evaluate(()=>localStorage.getItem('tingjian.lastMeeting'));
@@ -91,7 +122,7 @@ function wav(){
     await audio.click('#retranslate-button');
     await audio.waitForSelector('.toast:text-is("重译任务已完成")');
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({status:'passed',checks:['demo pipeline','automatic minutes','source navigation','search','original-only view','Markdown download','reload persistence','new meeting empty state','XSS escaping','390px responsive layout','microphone AudioWorklet + VAD + PCM transport (test provider)','audio playback','WAV upload','final drain','retranslation'],artifacts},null,2));
+    console.log(JSON.stringify({status:'passed',checks:['demo pipeline','automatic minutes','source navigation','search','original-only view','Markdown download','reload persistence','new meeting empty state','XSS escaping','390px responsive layout','rolling subtitle before stop (test provider)','sentence finals while recording','microphone AudioWorklet + VAD + PCM transport (test provider)','audio playback','WAV upload','final drain','retranslation'],artifacts},null,2));
   }finally{
     if(browser)await browser.close();
     for(const child of children)child.kill('SIGTERM');

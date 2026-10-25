@@ -121,6 +121,57 @@ bash scripts/start.sh
 
 界面服务和数据库可以在 CPU 上运行；真实模型调用依赖当前选定的设备。平台运行时长到期会停止进程，数据保留不等于服务持续运行。`tmux` 仅防终端断开，不能让进程跨实例停止继续工作。
 
+## 更新已部署实例
+
+本次滚动转写、会议默认值和文件停顿切分更新没有增加依赖或更换模型。先结束录音并等待任务完成，在运行 `start.sh` 的终端按 `Ctrl+C` 停止应用。无需停止 Notebook 服务器，也无需重新申请 GPU。
+
+先按现有 `.env` 中的路径备份数据库（录音仍保留在原目录）：
+
+```bash
+cd /home/jovyan/projects/meeting-assistant
+.venv/bin/python - <<'PY'
+from datetime import datetime
+import sqlite3
+from app.config import Settings
+
+directory = Settings.from_env().data_dir
+source = directory / 'meetings.sqlite3'
+if source.exists():
+    target = directory / 'backups' / (datetime.now().strftime('%Y%m%d-%H%M%S') + '.sqlite3')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(source) as src, sqlite3.connect(target) as dst:
+        src.backup(dst)
+    print('数据库已备份：', target)
+else:
+    print('当前配置下尚无数据库：', source)
+PY
+git pull --ff-only origin main
+```
+
+若 Git 提示本地修改冲突，保留输出并处理差异，不要使用 `reset --hard`。本次无需重新运行安装器；现有 `.env`、模型和会议数据继续使用。首次启动会自动添加 `translation_skipped` 字段，已有记录保留；新默认值只作用于新会议。
+
+启动前在项目环境完成带超时的 GPU 实际运算检查：
+
+```bash
+timeout 45 .venv/bin/python -u - <<'PY'
+import torch
+print('PyTorch:', torch.__version__, 'ROCm:', torch.version.hip)
+assert torch.version.hip and torch.cuda.is_available(), '项目环境无法使用 ROCm GPU'
+x = torch.ones(2, device='cuda') * 3
+torch.cuda.synchronize()
+assert x.cpu().tolist() == [3.0, 3.0]
+print('GPU 计算通过')
+PY
+```
+
+检查通过后运行 `bash scripts/start.sh`，另开终端验证：
+
+```bash
+curl --noproxy '*' http://127.0.0.1:8765/api/health
+```
+
+`inference_mode` 应为 `rolling-preview-with-final-sentences`，`provider` 为 `qwen`，`device` 为 `cuda`。浏览器原代理地址保持不变，使用 `Ctrl+Shift+R` 强制刷新前端。首次录音会准备模型；健康检查的 `models_loaded` 在模型准备前为 `false` 是正常的。实际 GPU 模型延迟仍需在 AUP 上测量，本地 CPU 测试不能替代。
+
 ## 5. 团队协作
 
 - 代码通过团队 Git 仓库与分支协作；演示使用一个固定分支／目录。

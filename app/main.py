@@ -11,20 +11,23 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Literal
 
-from .audio import SAMPLE_RATE, decode_pcm, normalize_wav, write_pcm
+from .audio import SAMPLE_RATE, decode_pcm, normalize_wav, split_upload, write_pcm
 from .config import ROOT, Settings
+from .live import LivePreviews
+from .language import is_chinese_text, recognition_source
 from .providers import DEMO, make_provider
 from .scheduler import InferenceQueue
+from .sentences import split_sentences
 from .store import Store
 
 log = logging.getLogger('meeting-assistant')
 
 
 class MeetingInput(BaseModel):
-    title: str = Field(default='未命名课堂', min_length=1, max_length=100)
-    source: Literal['zh', 'en', 'auto'] = 'zh'
-    target: Literal['zh', 'en'] = 'en'
-    glossary: str = Field(default='ROCm, Qwen, AMD, GPU, 语音活动检测', max_length=2000)
+    title: str = Field(default='新会议', min_length=1, max_length=100)
+    source: Literal['zh', 'en', 'auto'] = 'en'
+    target: Literal['zh', 'en'] = 'zh'
+    glossary: str = Field(default='', max_length=2000)
 
 
 class Runtime:
@@ -39,6 +42,8 @@ class Runtime:
         self.retranslating = set()
         self.demo_index = defaultdict(int)
         self.finish_tasks = {}
+        self.asr_locks = defaultdict(asyncio.Lock)
+        self.previews = LivePreviews(self)
 
     async def send(self, mid, event):
         for socket, lock in list(self.clients[mid].items()):
@@ -51,6 +56,7 @@ class Runtime:
     async def snapshot(self, mid):
         await self.send(mid, {'type': 'snapshot', 'meeting': self.store.get(mid),
                               'metrics': self.queue.metrics(),
+                              'drafts': self.previews.snapshot(mid),
                               'retranslating': mid in self.retranslating,
                               'summary_running': mid in self.summary_running})
 
@@ -77,31 +83,56 @@ class Runtime:
     async def translate(self, mid, segment):
         try:
             meeting = self.store.get(mid)
-            prior = [s['text'] for s in meeting['segments'] if s['id'] < segment['id']][-2:]
-            text, elapsed, _ = await self.queue.submit(1, '翻译', self.provider.translate,
-                segment['text'], meeting['target'], '\n'.join(prior), meeting['glossary'])
-            self.store.translate(segment['id'], text, elapsed)
+            if is_chinese_text(segment['text']):
+                self.store.translate(segment['id'], '', 0, skipped=True)
+            else:
+                prior = [s['text'] for s in meeting['segments'] if s['id'] < segment['id']][-2:]
+                text, elapsed, _ = await self.queue.submit(1, '翻译', self.provider.translate,
+                    segment['text'], meeting['target'], '\n'.join(prior), meeting['glossary'])
+                self.store.translate(segment['id'], text, elapsed)
         except Exception as exc:
             self.store.translate(segment['id'], '', None, str(exc)[:600])
             await self.error(mid, exc)
         await self.snapshot(mid)
         self.maybe_summary(mid)
 
-    async def transcribe(self, mid, path, start, end, acknowledge=True):
+    async def transcribe(self, mid, path, start, end, acknowledge=True, preview=None):
+        acknowledged = False
         try:
-            meeting = self.store.get(mid)
-            text, elapsed, _ = await self.queue.submit(0, '识别', self.provider.transcribe,
-                path, meeting['source'], meeting['glossary'])
-            if not text.strip():
-                await self.send(mid, {'type': 'notice', 'message': '该片段未识别到文字，录音已保留。'})
-                return
-            segment = self.store.segment(mid, text, start, end, elapsed, str(path.relative_to(self.settings.data_dir)))
-            await self.snapshot(mid)
-            await self.translate(mid, segment)
+            # Cache hits must not let a later clip overtake an earlier final ASR.
+            # Translation deliberately stays outside this ordering lock.
+            async with self.asr_locks[mid]:
+                meeting = self.store.get(mid)
+                cached = await self.previews.cached(preview[1], preview[2]) if preview else None
+                if cached is not None:
+                    text, elapsed = cached
+                else:
+                    text, elapsed, _ = await self.queue.submit(0, '识别', self.provider.transcribe,
+                        path, recognition_source(meeting), meeting['glossary'])
+                if not text.strip():
+                    await self.send(mid, {'type': 'notice', 'message': '该片段未识别到文字，录音已保留。'})
+                    return
+                segments = [self.store.segment(mid, sentence, start, end, elapsed,
+                    str(path.relative_to(self.settings.data_dir)), skip_translation=is_chinese_text(sentence))
+                    for sentence in split_sentences(text)]
+                if preview:
+                    self.previews.discard(preview[0])
+                await self.snapshot(mid)
+                # Backpressure counts unfinished ASR, rather than slow translations.
+                if acknowledge:
+                    await self.send(mid, {'type': 'audio_done'})
+                    acknowledged = True
+                if preview:
+                    await self.send(mid, {'type': 'transcript_final', 'utterance_id': preview[0][1]})
+            for segment in segments:
+                await self.translate(mid, segment)
         except Exception as exc:
             await self.error(mid, exc)
         finally:
-            if acknowledge:
+            if preview:
+                self.previews.discard(preview[0])
+                await self.send(mid, {'type': 'transcript_final', 'utterance_id': preview[0][1]})
+            if acknowledge and not acknowledged:
                 await self.send(mid, {'type': 'audio_done'})
 
     def unsummarized(self, mid):
@@ -151,7 +182,7 @@ class Runtime:
         finally:
             self.finish_tasks.pop(mid, None)
 
-    async def handle(self, mid, message):
+    async def handle(self, mid, message, owner=None):
         kind = message.get('type')
         if kind == 'ping':
             await self.send(mid, {'type': 'metrics', 'metrics': self.queue.metrics()})
@@ -189,6 +220,7 @@ class Runtime:
             return
         if kind == 'finish':
             self.writable(mid)
+            self.previews.flush(mid)
             self.store.status(mid, 'finishing')
             self.finish_tasks[mid] = asyncio.create_task(self.finish(mid))
             await self.snapshot(mid)
@@ -211,10 +243,10 @@ class Runtime:
                     raise ValueError('每次输入需为 1–2000 字。')
                 start = max(0, int(message.get('start_ms', 0)))
                 end = max(start, int(message.get('end_ms', start)))
-            segment = self.store.segment(mid, text, start, end)
+            segment = self.store.segment(mid, text, start, end, skip_translation=is_chinese_text(text))
             await self.snapshot(mid)
             self.spawn(mid, self.translate(mid, segment))
-        elif kind == 'audio':
+        elif kind in ('audio', 'audio_preview'):
             if self.provider.name == 'demo':
                 raise ValueError('演示模式不进行语音识别。请配置 Qwen 后录音。')
             if message.get('sample_rate') != SAMPLE_RATE:
@@ -222,9 +254,19 @@ class Runtime:
             pcm = decode_pcm(message.get('pcm16', ''))
             start = max(0, int(message.get('start_ms', 0)))
             end = start + round(len(pcm) / 32)
+            utterance = message.get('utterance_id')
+            if kind == 'audio_preview':
+                if not utterance:
+                    raise ValueError('实时音频缺少片段编号。')
+                self.previews.accept(mid, utterance, pcm, start, owner)
+                return
+            preview = None
+            if utterance:
+                key, state = self.previews.close(mid, utterance, pcm, start, owner)
+                preview = key, state, pcm
             path = self.settings.data_dir / 'audio' / mid / f'{uuid4().hex}.wav'
             write_pcm(path, pcm)
-            self.spawn(mid, self.transcribe(mid, path, start, end))
+            self.spawn(mid, self.transcribe(mid, path, start, end, preview=preview))
         else:
             raise ValueError('未知消息类型。')
 
@@ -267,12 +309,27 @@ def create_app(settings=None, provider=None):
                 'summary_every': settings.summary_every,
                 'summary_style': settings.summary_style,
                 'metrics': rt.queue.metrics(), 'demo_sentences': len(DEMO),
-                'inference_mode': 'utterance-chunked', 'models_loaded': {
+                'inference_mode': 'rolling-preview-with-final-sentences', 'models_loaded': {
                     'asr': getattr(rt.provider, 'asr', None) is not None,
                     'llm': getattr(rt.provider, 'llm', None) is not None,
                     'translation': (getattr(getattr(rt.provider, 'translator', None), 'model', None) is not None or
                         (getattr(getattr(rt.provider, 'translator', None), 'process', None) is not None and
                          rt.provider.translator.process.poll() is None))}}
+
+    @app.post('/api/asr/prepare')
+    async def prepare_asr(request: Request):
+        rt = runtime(request)
+        if rt.provider.name == 'demo':
+            raise HTTPException(400, '演示模式不加载语音模型。')
+        try:
+            warnings = []
+            if hasattr(rt.provider, 'prepare_recording'):
+                warnings, _, _ = await rt.queue.submit(0, '准备录音模型', rt.provider.prepare_recording)
+            elif hasattr(rt.provider, 'prepare_asr'):
+                await rt.queue.submit(0, '加载语音模型', rt.provider.prepare_asr)
+            return {'ready': True, 'warnings': warnings}
+        except Exception as exc:
+            raise HTTPException(503, str(exc)[:600]) from exc
 
     @app.get('/api/meetings')
     async def meetings(request: Request):
@@ -281,7 +338,7 @@ def create_app(settings=None, provider=None):
     @app.post('/api/meetings', status_code=201)
     async def create(body: MeetingInput, request: Request):
         rt = runtime(request)
-        return rt.store.create(body.title.strip() or '未命名课堂', body.source, body.target, body.glossary, rt.provider.name)
+        return rt.store.create(body.title.strip() or '新会议', body.source, body.target, body.glossary, rt.provider.name)
 
     @app.get('/api/meetings/{mid}')
     async def detail(mid: str, request: Request):
@@ -309,8 +366,21 @@ def create_app(settings=None, provider=None):
                 minutes, rest = divmod(rest, 60000)
                 seconds, millis = divmod(rest, 1000)
                 return f'{hours:02}:{minutes:02}:{seconds:02},{millis:03}'
-            content = '\n\n'.join(f'{i}\n{stamp(s["start_ms"])} --> {stamp(max(s["end_ms"], s["start_ms"] + 1000))}\n{s["text"]}\n{s["translation"]}'
-                for i, s in enumerate(meeting['segments'], 1))
+            # Sentences from one ASR clip share its actual source interval.
+            # Export one cue per clip instead of overlapping sentence cues or
+            # inventing word-level timestamps that this ASR does not provide.
+            groups = []
+            for segment in meeting['segments']:
+                if (groups and segment['audio_path'] and
+                        groups[-1][0]['audio_path'] == segment['audio_path']):
+                    groups[-1].append(segment)
+                else:
+                    groups.append([segment])
+            content = '\n\n'.join(
+                f'{i}\n{stamp(group[0]["start_ms"])} --> '
+                f'{stamp(max(group[0]["end_ms"], group[0]["start_ms"] + (1 if group[0]["audio_path"] else 1000)))}\n' +
+                '\n'.join(f'{s["text"]}\n{s["translation"]}' for s in group)
+                for i, group in enumerate(groups, 1))
             media = 'application/x-subrip'
         else:
             lines = [f'# {meeting["title"]}', '', f'创建时间：{meeting["created_at"]}',
@@ -320,7 +390,9 @@ def create_app(settings=None, provider=None):
                           '原文片段：' + ', '.join(str(n) for n in s['segment_ids']), '']
             lines += ['## 双语原文', '']
             for s in meeting['segments']:
-                lines += [f'### [{s["id"]}] {s["start_ms"] / 1000:.1f}s', '', s['text'], '', s['translation'] or '（翻译未完成）', '']
+                lines += [f'### [{s["id"]}] {s["start_ms"] / 1000:.1f}s', '', s['text'], '']
+                if not s['translation_skipped']:
+                    lines += [s['translation'] or '（翻译未完成）', '']
             content, media = '\n'.join(lines), 'text/markdown'
         return Response(content, media_type=media,
             headers={'Content-Disposition': f'attachment; filename="meeting-{mid[:8]}.{format}"'})
@@ -339,19 +411,45 @@ def create_app(settings=None, provider=None):
             pcm = await asyncio.to_thread(normalize_wav, blob)
             if rt.pending[mid]:
                 raise ValueError('请等待当前任务完成后再导入录音。')
+            spans = await asyncio.to_thread(split_upload, pcm)
+            if not spans:
+                raise ValueError('音频中未检测到有效声音，请检查录音音量。')
+            import_id = uuid4().hex
+            directory = settings.data_dir / 'audio' / mid / 'imports' / import_id
+            source = directory / 'source.wav'
+            # Keep the complete accepted upload even when long silences are not
+            # sent to ASR, or later processing fails. Model clips are derived.
+            await asyncio.to_thread(write_pcm, source, pcm)
+            rt.writable(mid)
+            if rt.pending[mid]:
+                raise ValueError('请等待当前任务完成后再导入录音。')
+            offset = max((s['end_ms'] for s in rt.store.get(mid)['segments']), default=0)
+            for manifest in directory.parent.glob('*/manifest.json'):
+                try:
+                    previous = json.loads(manifest.read_text())
+                    offset = max(offset, previous['offset_ms'] + previous['duration_ms'])
+                except (OSError, ValueError, KeyError):
+                    log.warning('Could not read an audio import manifest: %s', manifest)
+            plan = {'version': 1, 'offset_ms': offset, 'duration_ms': len(pcm) // 32,
+                    'sample_rate': SAMPLE_RATE, 'source': 'source.wav',
+                    'segmentation': 'pause-first', 'max_seconds': 30, 'pause_ms': 350,
+                    'clips': [{'start_sample': s.start, 'end_sample': s.end,
+                               'boundary': s.boundary} for s in spans]}
+            (directory / 'manifest.json').write_text(json.dumps(plan, ensure_ascii=False, indent=2))
             async def process_file():
-                offset = max((s['end_ms'] for s in rt.store.get(mid)['segments']), default=0)
-                step = SAMPLE_RATE * 2 * 10
-                for index in range(0, len(pcm), step):
-                    chunk = pcm[index:index + step]
-                    path = settings.data_dir / 'audio' / mid / f'{uuid4().hex}.wav'
+                for index, span in enumerate(spans):
+                    chunk = pcm[span.start * 2:span.end * 2]
+                    path = directory / f'clip-{index:04}.wav'
                     write_pcm(path, chunk)
-                    start = offset + index // 32
-                    await rt.transcribe(mid, path, start, start + len(chunk) // 32, acknowledge=False)
+                    start = offset + round(span.start / 16)
+                    end = offset + round(span.end / 16)
+                    await rt.transcribe(mid, path, start, end, acknowledge=False)
             # Recheck after awaiting file reads so a concurrent finish cannot accept new input.
             rt.writable(mid)
             rt.spawn(mid, process_file())
-            return {'accepted': True, 'duration_ms': len(pcm) // 32}
+            return {'accepted': True, 'duration_ms': len(pcm) // 32,
+                    'segmentation': 'pause-first', 'chunk_count': len(spans),
+                    'forced_chunks': sum(s.boundary in ('length', 'short_pause') for s in spans)}
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
@@ -375,7 +473,7 @@ def create_app(settings=None, provider=None):
                     message = json.loads(raw)
                     if not isinstance(message, dict):
                         raise ValueError('消息需要是 JSON 对象。')
-                    await rt.handle(mid, message)
+                    await rt.handle(mid, message, owner=socket)
                 except (ValueError, TypeError, KeyError, RuntimeError) as exc:
                     await rt.error(mid, exc)
                     if isinstance(message, dict) and message.get('type') == 'audio':
@@ -384,6 +482,7 @@ def create_app(settings=None, provider=None):
             pass
         finally:
             rt.clients[mid].pop(socket, None)
+            rt.previews.disconnect(mid, socket)
 
     app.mount('/static', StaticFiles(directory=ROOT / 'web'), name='static')
 
